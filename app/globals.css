@@ -1,26 +1,70 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Brand colors */
+  --brand-yellow: #e4b795;
+  --brand-blue: #2f679f;
+  --brand-white: #f2f7fa;
+
+  /* Base surfaces */
+  --background: #ffffff; /* force pure white for light mode */
+  --app-bg: #ffffff; /* light mode page background */
+  --foreground: #0f172a; /* slate-900 */
+  --muted: #64748b; /* slate-500 */
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-brand-yellow: var(--brand-yellow);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-white: var(--brand-white);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
+/* Respect OS preference, and also respond to explicit .dark class on <html> */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0b1220; /* near slate-950 */
+    --foreground: #e5e7eb; /* gray-200 */
+    --muted: #94a3b8; /* slate-400 */
+    --app-bg: #0b1220;
   }
 }
 
+html.dark {
+  --background: #0b1220; /* near slate-950 */
+  --foreground: #e5e7eb; /* gray-200 */
+  --muted: #94a3b8; /* slate-400 */
+  --app-bg: #0b1220;
+}
+
 body {
-  background: var(--background);
+  background: var(--app-bg);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
+    Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+/* Utility surfaces */
+.card {
+  @apply rounded-xl border border-black/5 dark:border-white/10 bg-white dark:bg-zinc-900 shadow-sm;
+}
+
+/* Toastify overrides to match theme */
+.Toastify__toast-theme--light {
+  background: var(--brand-white);
+  color: var(--foreground);
+}
+.Toastify__toast-theme--dark {
+  background: #0f172a;
+  color: #e5e7eb;
+}
+.Toastify__progress-bar--colored.Toastify__progress-bar-theme--light {
+  background: var(--brand-blue);
+}
+.Toastify__progress-bar--colored.Toastify__progress-bar-theme--dark {
+  background: var(--brand-yellow);
 }
