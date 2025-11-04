@@ -28,7 +28,15 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {children}
-        <ToastContainer position="top-right" theme="light" />
+        <ToastContainer
+          position="top-right"
+          theme="dark"
+          autoClose={3500}
+          newestOnTop
+          closeOnClick
+          pauseOnHover
+          draggable
+        />
       </body>
     </html>
   );

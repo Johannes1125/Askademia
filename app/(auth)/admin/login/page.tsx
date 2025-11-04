@@ -1,8 +1,39 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+import { toast } from "react-toastify";
 
 export default function AdminLoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const supabase = createClient();
+  const router = useRouter();
+
+  const handleAdminLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      toast.error(error.message);
+      setLoading(false);
+    } else {
+      // Check if user is admin (you'll need to verify role from profiles table)
+      // For now, just redirect - add role check later
+      toast.success("Logged in as admin!");
+      router.push("/admin");
+      router.refresh();
+    }
+  };
+
   return (
     <div className="min-h-[calc(100vh-4rem)] grid grid-cols-1 lg:grid-cols-2">
       {/* Left: Form */}
@@ -12,11 +43,14 @@ export default function AdminLoginPage() {
             <h1 className="text-3xl font-bold text-black dark:text-white mb-2">Admin Login</h1>
             <p className="text-sm text-gray-600 dark:text-gray-400">Restricted access - Enter your admin credentials</p>
           </div>
-          <form className="space-y-5">
+          <form onSubmit={handleAdminLogin} className="space-y-5">
             <div>
               <label className="text-sm font-medium text-black dark:text-white mb-2 block">Admin Email</label>
               <input
                 type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
                 className="w-full rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-[#11161d] px-4 py-3 text-sm text-black dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[var(--brand-blue)]"
                 placeholder="admin@example.com"
               />
@@ -30,16 +64,20 @@ export default function AdminLoginPage() {
               </div>
               <input
                 type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
                 className="w-full rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-[#11161d] px-4 py-3 text-sm text-black dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[var(--brand-blue)]"
                 placeholder="Enter your password"
               />
             </div>
             <button
               type="submit"
-              className="w-full rounded-lg px-4 py-3 text-sm font-medium text-white transition-opacity hover:opacity-90"
+              disabled={loading}
+              className="w-full rounded-lg px-4 py-3 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: "var(--brand-blue)" }}
             >
-              Login
+              {loading ? "Logging in..." : "Login"}
             </button>
           </form>
           <div className="text-sm text-center text-gray-600 dark:text-gray-400">

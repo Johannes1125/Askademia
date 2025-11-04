@@ -3,7 +3,9 @@
 
 import { ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/hooks/useAuth";
 import {
   DashboardIcon,
   ChatBubbleIcon,
@@ -31,8 +33,19 @@ const primaryNav: NavItem[] = [
 
 export default function MainLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [dark, setDark] = useState(false);
+  const { user } = useAuth();
+  const supabase = createClient();
+
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (!error) {
+      // Use window.location for a hard redirect to ensure logout happens
+      window.location.href = "/login";
+    }
+  };
 
   useEffect(() => {
     const stored = typeof window !== "undefined" ? localStorage.getItem("ask_theme") : null;
@@ -94,7 +107,10 @@ export default function MainLayout({ children }: { children: ReactNode }) {
             <Link href="/settings" className="flex items-center gap-2 text-sm text-white/80 hover:text-white">
               <GearIcon /> Settings
             </Link>
-            <button className="flex items-center gap-2 text-left text-sm text-white/80 hover:text-white">
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 text-left text-sm text-white/80 hover:text-white"
+            >
               <ExitIcon /> Logout
             </button>
           </div>
@@ -117,12 +133,18 @@ export default function MainLayout({ children }: { children: ReactNode }) {
             >
               {dark ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
             </button>
-            <Link href="/login" className="text-sm px-3 py-1.5 rounded-md border border-black/10 hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/10">
-              Login
-            </Link>
-            <Link href="/signup" className="text-sm px-3 py-1.5 rounded-md text-white" style={{ background: "var(--brand-blue)" }}>
-              Sign Up
-            </Link>
+            {!user ? (
+              <>
+                <Link href="/login" className="text-sm px-3 py-1.5 rounded-md border border-black/10 hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/10">
+                  Login
+                </Link>
+                <Link href="/signup" className="text-sm px-3 py-1.5 rounded-md text-white" style={{ background: "var(--brand-blue)" }}>
+                  Sign Up
+                </Link>
+              </>
+            ) : (
+              <div className="text-sm text-black dark:text-white">{user.email}</div>
+            )}
           </div>
         </header>
         <main className="flex-1 h-[calc(100vh-3.5rem)] overflow-auto p-4 md:p-6">{children}</main>
