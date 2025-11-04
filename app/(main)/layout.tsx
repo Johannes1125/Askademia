@@ -18,6 +18,8 @@ import {
   MagnifyingGlassIcon,
   SunIcon,
   MoonIcon,
+  HamburgerMenuIcon,
+  Cross2Icon,
 } from "@radix-ui/react-icons";
 
 type NavItem = { href: string; label: string; icon: ReactNode };
@@ -36,6 +38,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [dark, setDark] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user } = useAuth();
   const supabase = createClient();
 
@@ -63,18 +66,41 @@ export default function MainLayout({ children }: { children: ReactNode }) {
   }, [dark]);
 
   return (
-    <div className="min-h-screen bg-[var(--brand-white)] text-[var(--foreground)] flex dark:bg-[#0b1220] dark:text-[#e5e7eb]">
-      <aside className="hidden md:flex w-72 flex-col border-r border-black/5 dark:border-white/10 bg-[#0f1218] text-white">
+    <div className="h-screen bg-[var(--brand-white)] text-[var(--foreground)] flex dark:bg-[#0b1220] dark:text-[#e5e7eb] overflow-hidden">
+      {/* Mobile backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      
+      {/* Sidebar */}
+      <aside
+        className={`fixed md:static inset-y-0 left-0 z-50 w-72 flex flex-col border-r border-black/5 dark:border-white/10 bg-[#0f1218] text-white transition-transform duration-300 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        }`}
+      >
         <div className="px-4 py-4 border-b border-white/10">
-          <Link href="/dashboard" className="flex items-center gap-3">
-            <div className="h-9 w-9 grid place-items-center rounded-lg" style={{ background: "var(--brand-yellow)" }}>
-              <span className="text-[#1f2937] font-bold">A</span>
-            </div>
-            <div>
-              <div className="font-semibold">Askademia</div>
-              <div className="text-xs text-white/60">Research AI</div>
-            </div>
-          </Link>
+          <div className="flex items-center justify-between">
+            <Link href="/dashboard" className="flex items-center gap-3" onClick={() => setSidebarOpen(false)}>
+              <div className="h-9 w-9 grid place-items-center rounded-lg" style={{ background: "var(--brand-yellow)" }}>
+                <span className="text-[#1f2937] font-bold">A</span>
+              </div>
+              <div>
+                <div className="font-semibold">Askademia</div>
+                <div className="text-xs text-white/60">Research AI</div>
+              </div>
+            </Link>
+            {/* Close button for mobile */}
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="md:hidden text-white/80 hover:text-white"
+              aria-label="Close sidebar"
+            >
+              <Cross2Icon className="h-5 w-5" />
+            </button>
+          </div>
           <div className="mt-4 flex items-center gap-2 rounded-md bg-white/5 px-3 py-2">
             <MagnifyingGlassIcon className="h-4 w-4 text-white/60" />
             <input
@@ -92,6 +118,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={() => setSidebarOpen(false)}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
                   active ? "bg-white/10 text-white" : "text-white/80 hover:bg-white/5"
                 }`}
@@ -104,7 +131,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
         </nav>
         <div className="mt-auto border-t border-white/10 p-4">
           <div className="grid gap-2">
-            <Link href="/settings" className="flex items-center gap-2 text-sm text-white/80 hover:text-white">
+            <Link href="/settings" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2 text-sm text-white/80 hover:text-white">
               <GearIcon /> Settings
             </Link>
             <button
@@ -118,12 +145,22 @@ export default function MainLayout({ children }: { children: ReactNode }) {
       </aside>
       <div className="flex-1 flex flex-col">
         <header className="h-14 border-b border-black/5 dark:border-white/10 bg-white/70 dark:bg-[#0f1218] backdrop-blur flex items-center justify-between px-4">
-          <Link href="/dashboard" className="flex items-center gap-3">
-            <div className="h-7 w-7 grid place-items-center rounded-md" style={{ background: "var(--brand-yellow)" }}>
-              <span className="text-[#1f2937] text-sm font-bold">A</span>
-            </div>
-            <span className="font-semibold">Askademia</span>
-          </Link>
+          <div className="flex items-center gap-3">
+            {/* Burger menu button for mobile */}
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="md:hidden text-black dark:text-white hover:bg-black/5 dark:hover:bg-white/10 rounded-md p-2"
+              aria-label="Toggle sidebar"
+            >
+              <HamburgerMenuIcon className="h-5 w-5" />
+            </button>
+            <Link href="/dashboard" className="flex items-center gap-3">
+              <div className="h-7 w-7 grid place-items-center rounded-md" style={{ background: "var(--brand-yellow)" }}>
+                <span className="text-[#1f2937] text-sm font-bold">A</span>
+              </div>
+              <span className="font-semibold">Askademia</span>
+            </Link>
+          </div>
           <div className="ml-auto flex items-center gap-2">
             <button
               onClick={() => setDark((d) => !d)}
@@ -147,7 +184,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
             )}
           </div>
         </header>
-        <main className="flex-1 h-[calc(100vh-3.5rem)] overflow-auto p-4 md:p-6">{children}</main>
+        <main className="flex-1 h-[calc(100vh-3.5rem)] overflow-hidden p-4 md:p-6">{children}</main>
       </div>
     </div>
   );

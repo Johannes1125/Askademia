@@ -124,3 +124,107 @@ CREATE TRIGGER update_profiles_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
+-- Create conversations table for storing chat conversations
+CREATE TABLE IF NOT EXISTS conversations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  -- Index for faster user lookups
+  CONSTRAINT fk_conversations_user FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+);
+
+-- Create index for faster user lookups
+CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_updated_at ON conversations(updated_at DESC);
+
+-- Enable RLS on conversations
+ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Users can only view their own conversations
+CREATE POLICY "Users can view own conversations" ON conversations
+  FOR SELECT
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+-- Policy: Users can insert their own conversations
+CREATE POLICY "Users can create own conversations" ON conversations
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+-- Policy: Users can update their own conversations
+CREATE POLICY "Users can update own conversations" ON conversations
+  FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Policy: Users can delete their own conversations
+CREATE POLICY "Users can delete own conversations" ON conversations
+  FOR DELETE
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+-- Create messages table for storing chat messages
+CREATE TABLE IF NOT EXISTS messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+  content TEXT NOT NULL CHECK (LENGTH(content) <= 10000), -- Limit to 10KB per message
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  
+  -- Index for faster conversation lookups
+  CONSTRAINT fk_messages_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+);
+
+-- Create index for faster conversation lookups
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(conversation_id, created_at);
+
+-- Enable RLS on messages
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Users can only view messages from their own conversations
+CREATE POLICY "Users can view own messages" ON messages
+  FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM conversations
+      WHERE conversations.id = messages.conversation_id
+      AND conversations.user_id = auth.uid()
+    )
+  );
+
+-- Policy: Users can insert messages to their own conversations
+CREATE POLICY "Users can create own messages" ON messages
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM conversations
+      WHERE conversations.id = messages.conversation_id
+      AND conversations.user_id = auth.uid()
+    )
+  );
+
+-- Trigger to update conversation updated_at when messages are added
+CREATE OR REPLACE FUNCTION update_conversation_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE conversations
+  SET updated_at = NOW()
+  WHERE id = NEW.conversation_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS update_conversation_on_message ON messages;
+CREATE TRIGGER update_conversation_on_message
+  AFTER INSERT ON messages
+  FOR EACH ROW
+  EXECUTE FUNCTION update_conversation_timestamp();
+

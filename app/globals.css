@@ -41,6 +41,10 @@ html.dark {
   --app-bg: #0b1220;
 }
 
+html, body {
+  height: 100%;
+}
+
 body {
   background: var(--app-bg);
   color: var(--foreground);
@@ -51,6 +55,37 @@ body {
 /* Utility surfaces */
 .card {
   @apply rounded-xl border border-black/5 dark:border-white/10 bg-white dark:bg-zinc-900 shadow-sm;
+}
+
+/* Custom dark scrollbar styles */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f1218;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2f3a;
+  border-radius: 5px;
+  border: 2px solid #0f1218;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3f4a;
+}
+
+::-webkit-scrollbar-corner {
+  background: #0f1218;
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2f3a #0f1218;
 }
 
 /* Toastify overrides to match theme */
