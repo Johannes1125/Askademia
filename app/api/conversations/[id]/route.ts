@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 // GET: Fetch a single conversation with all messages
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient();
@@ -17,7 +17,7 @@ export async function GET(
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Fetch conversation
     const { data: conversation, error: convError } = await supabase
@@ -78,7 +78,7 @@ export async function GET(
 // PATCH: Update conversation (mainly title)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient();
@@ -91,7 +91,7 @@ export async function PATCH(
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
     const { title } = await request.json();
 
     // Verify ownership
@@ -149,7 +149,7 @@ export async function PATCH(
 // DELETE: Delete a conversation (cascades to messages)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient();
@@ -162,7 +162,7 @@ export async function DELETE(
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Verify ownership
     const { data: conversation, error: convError } = await supabase

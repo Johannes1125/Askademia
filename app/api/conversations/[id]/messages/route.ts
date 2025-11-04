@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 // POST: Add a message to a conversation
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient();
@@ -17,7 +17,7 @@ export async function POST(
       );
     }
 
-    const { id: conversationId } = params;
+    const { id: conversationId } = await params;
     const { role, content } = await request.json();
 
     // Validate input
@@ -122,7 +122,7 @@ export async function POST(
 // POST: Add multiple messages at once (for batch updates)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient();
@@ -135,7 +135,7 @@ export async function PUT(
       );
     }
 
-    const { id: conversationId } = params;
+    const { id: conversationId } = await params;
     const { messages } = await request.json();
 
     // Validate input

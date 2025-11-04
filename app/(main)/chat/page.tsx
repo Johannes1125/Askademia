@@ -4,7 +4,7 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { toast } from "react-toastify";
-import { PaperPlaneIcon, PlusIcon } from "@radix-ui/react-icons";
+import { PaperPlaneIcon, PlusIcon, TrashIcon, ReloadIcon } from "@radix-ui/react-icons";
 
 type Message = { id: string; role: "user" | "assistant"; content: string };
 type Conversation = { id: string; title: string; messages: Message[] };
@@ -70,7 +70,7 @@ export default function ChatPage() {
     } catch (error: any) {
       console.error("Error creating conversation:", error);
       toast.error("Failed to create conversation");
-      // Fallback to local conversation
+      // Fallback to local conversation (won't persist, but allows usage)
       const id = crypto.randomUUID();
       const conv: Conversation = { id, title: "New Conversation", messages: [] };
       setConversations((prev) => [conv, ...prev]);
@@ -78,37 +78,86 @@ export default function ChatPage() {
     }
   }
 
-  // Load conversations from Supabase on mount
-  useEffect(() => {
-    async function loadConversations() {
+  async function deleteConversation(conversationId: string, e: React.MouseEvent) {
+    e.stopPropagation(); // Prevent selecting the conversation when clicking delete
+    
+    if (!confirm("Are you sure you want to delete this conversation? This action cannot be undone.")) {
+      return;
+    }
+
+    // Check if it's a database conversation (UUID format)
+    const isDatabaseConversation = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(conversationId);
+    
+    if (isDatabaseConversation) {
       try {
-        setLoadingConversations(true);
-        const response = await fetch("/api/conversations");
-        
+        const response = await fetch(`/api/conversations/${conversationId}`, {
+          method: "DELETE",
+        });
+
         if (!response.ok) {
-          throw new Error("Failed to load conversations");
-        }
-
-        const data = await response.json();
-        const loadedConversations = data.conversations || [];
-
-        if (loadedConversations.length > 0) {
-          setConversations(loadedConversations);
-          setActiveId(loadedConversations[0].id);
-        } else {
-          // Create a new conversation if none exist
-          await createConversation();
+          throw new Error("Failed to delete conversation");
         }
       } catch (error: any) {
-        console.error("Error loading conversations:", error);
-        toast.error("Failed to load conversations");
-        // Create a new conversation as fallback
-        await createConversation();
-      } finally {
-        setLoadingConversations(false);
+        console.error("Error deleting conversation:", error);
+        toast.error("Failed to delete conversation");
+        return;
       }
     }
 
+    // Remove from local state and handle active conversation
+    setConversations((prev) => {
+      const remaining = prev.filter((c) => c.id !== conversationId);
+      
+      // If we deleted the active conversation, switch to another one
+      if (activeId === conversationId) {
+        if (remaining.length > 0) {
+          setActiveId(remaining[0].id);
+        } else {
+          // Create a new conversation if none remain
+          createConversation();
+        }
+      }
+      
+      return remaining;
+    });
+    
+    toast.success("Conversation deleted");
+  }
+
+  // Load conversations from Supabase on mount and when needed
+  const loadConversations = async () => {
+    try {
+      setLoadingConversations(true);
+      const response = await fetch("/api/conversations");
+      
+      if (!response.ok) {
+        throw new Error("Failed to load conversations");
+      }
+
+      const data = await response.json();
+      const loadedConversations = data.conversations || [];
+
+      if (loadedConversations.length > 0) {
+        setConversations(loadedConversations);
+        // Only set active if we don't have one or if the current one was deleted
+        if (!activeId || !loadedConversations.find(c => c.id === activeId)) {
+          setActiveId(loadedConversations[0].id);
+        }
+      } else {
+        // Create a new conversation if none exist
+        await createConversation();
+      }
+    } catch (error: any) {
+      console.error("Error loading conversations:", error);
+      toast.error("Failed to load conversations");
+      // Create a new conversation as fallback
+      await createConversation();
+    } finally {
+      setLoadingConversations(false);
+    }
+  };
+
+  useEffect(() => {
     loadConversations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -386,33 +435,65 @@ export default function ChatPage() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 h-full max-h-full min-h-0">
-      {/* Left: conversation list */}
+      {/* Left: conversation list - Chat History Sidebar */}
       <div className="card bg-[#11161d] border-white/10 text-white flex flex-col overflow-hidden h-full">
-        <div className="p-4 border-b border-white/10">
+        <div className="p-4 border-b border-white/10 flex items-center gap-2">
           <button
             onClick={createConversation}
-            className="w-full flex items-center gap-2 justify-center rounded-lg px-3 py-2 text-sm font-medium"
+            className="flex-1 flex items-center gap-2 justify-center rounded-lg px-3 py-2 text-sm font-medium"
             style={{ background: "var(--brand-yellow)", color: "#1f2937" }}
           >
             <PlusIcon /> New Chat
+          </button>
+          <button
+            onClick={loadConversations}
+            disabled={loadingConversations}
+            className="p-2 rounded-lg hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Refresh conversations"
+          >
+            <ReloadIcon className={`h-4 w-4 ${loadingConversations ? 'animate-spin' : ''}`} />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {loadingConversations ? (
             <div className="text-center text-white/60 text-sm py-4">Loading conversations...</div>
+          ) : conversations.length === 0 ? (
+            <div className="text-center text-white/60 text-sm py-4">
+              <p>No conversations yet</p>
+              <p className="text-xs mt-1">Start a new chat to begin</p>
+            </div>
           ) : (
             conversations.map((c) => {
               const isActive = c.id === activeId;
+              const isDatabaseConv = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c.id);
               return (
-                <button
+                <div
                   key={c.id}
-                  onClick={() => setActiveId(c.id)}
-                  className={`w-full text-left rounded-lg px-3 py-2 text-sm ${
+                  className={`group relative flex items-center rounded-lg ${
                     isActive ? "bg-[var(--brand-yellow)]/20" : "hover:bg-white/5"
                   }`}
                 >
-                  {c.title}
-                </button>
+                  <button
+                    onClick={() => setActiveId(c.id)}
+                    className="flex-1 text-left rounded-lg px-3 py-2 text-sm pr-8 truncate"
+                  >
+                    <div className="truncate">{c.title || "New Conversation"}</div>
+                    {c.messages && c.messages.length > 0 && (
+                      <div className="text-xs text-white/50 mt-0.5">
+                        {c.messages.length} message{c.messages.length !== 1 ? 's' : ''}
+                      </div>
+                    )}
+                  </button>
+                  {isDatabaseConv && (
+                    <button
+                      onClick={(e) => deleteConversation(c.id, e)}
+                      className="absolute right-2 p-1.5 rounded hover:bg-red-500/20 text-white/60 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Delete conversation"
+                    >
+                      <TrashIcon className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               );
             })
           )}
