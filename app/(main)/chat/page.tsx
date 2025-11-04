@@ -81,7 +81,9 @@ export default function ChatPage() {
   async function deleteConversation(conversationId: string, e: React.MouseEvent) {
     e.stopPropagation(); // Prevent selecting the conversation when clicking delete
     
-    if (!confirm("Are you sure you want to delete this conversation? This action cannot be undone.")) {
+    // Show confirmation toast with custom action
+    const confirmed = window.confirm("Are you sure you want to delete this conversation? This action cannot be undone.");
+    if (!confirmed) {
       return;
     }
 

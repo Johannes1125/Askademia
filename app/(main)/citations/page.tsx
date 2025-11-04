@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { toast } from 'react-toastify';
 
 type Format = 'APA' | 'MLA' | 'Chicago' | 'Harvard' | 'IEEE';
 
@@ -26,8 +27,14 @@ export default function CitationsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Failed to create citation');
       setItems((prev) => [data.citation as string, ...prev]);
+      toast.success('Citation created successfully!');
+      // Clear form
+      setTitle('');
+      setAuthors('');
+      setYear('');
+      setUrl('');
     } catch (e: any) {
-      alert(e?.message || 'Failed to create citation');
+      toast.error(e?.message || 'Failed to create citation');
     } finally {
       setLoading(false);
     }

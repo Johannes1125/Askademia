@@ -11,13 +11,16 @@ export default function UserSignupPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
   const [usernameError, setUsernameError] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [confirmPasswordError, setConfirmPasswordError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const supabase = createClient();
   const router = useRouter();
 
@@ -75,22 +78,37 @@ export default function UserSignupPage() {
     return "";
   };
 
+  const validateConfirmPassword = (pwd: string, confirm: string): string => {
+    if (!confirm) {
+      return "Please confirm your password";
+    }
+    if (pwd !== confirm) {
+      return "Passwords do not match";
+    }
+    return "";
+  };
+
   const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validate all fields
     const usernameValidation = validateUsername(username);
     const passwordValidation = validatePassword(password);
+    const confirmPasswordValidation = validateConfirmPassword(password, confirmPassword);
     
     setUsernameError(usernameValidation);
     setPasswordError(passwordValidation);
+    setConfirmPasswordError(confirmPasswordValidation);
 
-    if (usernameValidation || passwordValidation) {
+    if (usernameValidation || passwordValidation || confirmPasswordValidation) {
       if (usernameValidation) {
         toast.error(usernameValidation);
       }
       if (passwordValidation) {
         toast.error(passwordValidation);
+      }
+      if (confirmPasswordValidation) {
+        toast.error(confirmPasswordValidation);
       }
       return;
     }
@@ -289,9 +307,9 @@ export default function UserSignupPage() {
                     tabIndex={-1}
                   >
                     {showPassword ? (
-                      <EyeClosedIcon className="h-5 w-5 text-gray-500 dark:text-white" />
-                    ) : (
                       <EyeOpenIcon className="h-5 w-5 text-gray-500 dark:text-white" />
+                    ) : (
+                      <EyeClosedIcon className="h-5 w-5 text-gray-500 dark:text-white" />
                     )}
                   </button>
                 </div>
@@ -302,6 +320,52 @@ export default function UserSignupPage() {
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     Password must be at least 8 characters with uppercase, lowercase, number, and symbol
                   </p>
+                )}
+              </div>
+              <div>
+                <label className="text-sm font-medium text-black dark:text-white mb-2 block">Confirm Password</label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setConfirmPassword(value);
+                      if (value) {
+                        setConfirmPasswordError(validateConfirmPassword(password, value));
+                      } else {
+                        setConfirmPasswordError("");
+                      }
+                    }}
+                    onBlur={() => setConfirmPasswordError(validateConfirmPassword(password, confirmPassword))}
+                    required
+                    disabled={sendingOtp}
+                    className={`w-full rounded-lg border ${
+                      confirmPasswordError
+                        ? "border-red-500 dark:border-red-500"
+                        : "border-gray-300 dark:border-white/10"
+                    } bg-white dark:bg-[#11161d] px-4 py-3 pr-10 text-sm text-black dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 ${
+                      confirmPasswordError
+                        ? "focus:ring-red-500"
+                        : "focus:ring-[var(--brand-blue)]"
+                    } disabled:opacity-50`}
+                    placeholder="Confirm your password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-white hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOpenIcon className="h-5 w-5 text-gray-500 dark:text-white" />
+                    ) : (
+                      <EyeClosedIcon className="h-5 w-5 text-gray-500 dark:text-white" />
+                    )}
+                  </button>
+                </div>
+                {confirmPasswordError && (
+                  <p className="mt-1 text-xs text-red-500 dark:text-red-400">{confirmPasswordError}</p>
                 )}
               </div>
               <button

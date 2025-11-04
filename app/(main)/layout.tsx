@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/hooks/useAuth";
+import { toast } from "react-toastify";
 import {
   DashboardIcon,
   ChatBubbleIcon,
@@ -43,10 +44,19 @@ export default function MainLayout({ children }: { children: ReactNode }) {
   const supabase = createClient();
 
   const handleLogout = async () => {
+    // Show confirmation dialog
+    const confirmed = window.confirm("Are you sure you want to log out?");
+    if (!confirmed) {
+      return;
+    }
+
     const { error } = await supabase.auth.signOut();
     if (!error) {
+      toast.success("Logged out successfully");
       // Use window.location for a hard redirect to ensure logout happens
       window.location.href = "/login";
+    } else {
+      toast.error(error.message || "Failed to log out");
     }
   };
 
