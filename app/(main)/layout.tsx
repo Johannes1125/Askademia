@@ -27,7 +27,7 @@ type NavItem = { href: string; label: string; icon: ReactNode };
 const primaryNav: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: <DashboardIcon /> },
   { href: "/chat", label: "Chat", icon: <ChatBubbleIcon /> },
-  { href: "/tools/citation", label: "Reference & Citation", icon: <BookmarkIcon /> },
+  { href: "/citations", label: "Citations", icon: <BookmarkIcon /> },
   { href: "/tools/grammar", label: "Grammar Checker", icon: <CheckCircledIcon /> },
   { href: "/analytics", label: "Analytics", icon: <BarChartIcon /> },
   { href: "/admin", label: "Admin Panel", icon: <LockClosedIcon /> },
