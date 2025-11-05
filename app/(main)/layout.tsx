@@ -2,6 +2,7 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";
+import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -38,6 +39,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query, 250);
   const [dark, setDark] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
@@ -89,7 +91,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="h-screen bg-[var(--brand-white)] text-[var(--foreground)] flex dark:bg-[#0b1220] dark:text-[#e5e7eb] overflow-hidden">
+    <div className="h-screen bg-white text-slate-900 flex dark:bg-[#0b1220] dark:text-[#e5e7eb] overflow-hidden">
       {/* Mobile backdrop */}
       {sidebarOpen && (
         <div
@@ -100,9 +102,10 @@ export default function MainLayout({ children }: { children: ReactNode }) {
       
       {/* Sidebar */}
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-50 w-72 flex flex-col border-r border-black/5 dark:border-white/10 bg-[#0f1218] text-white transition-transform duration-300 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-        }`}
+        className={`fixed md:static inset-y-0 left-0 z-50 w-72 flex flex-col transition-transform duration-300
+        border-r border-black/10 dark:border-white/10
+        bg-white text-slate-900 dark:bg-[#0f1218] dark:text-white
+        ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
       >
         <div className="px-4 py-4 border-b border-white/10">
           <div className="flex items-center justify-between">
@@ -124,13 +127,13 @@ export default function MainLayout({ children }: { children: ReactNode }) {
               <Cross2Icon className="h-5 w-5" />
             </button>
           </div>
-          <div className="mt-4 flex items-center gap-2 rounded-md bg-white/5 px-3 py-2">
-            <MagnifyingGlassIcon className="h-4 w-4 text-white/60" />
+          <div className="mt-4 flex items-center gap-2 rounded-md px-3 py-2 bg-black/5 text-slate-700 dark:bg-white/5 dark:text-white">
+            <MagnifyingGlassIcon className="h-4 w-4 text-slate-500 dark:text-white/60" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search..."
-              className="bg-transparent outline-none text-sm w-full placeholder:text-white/50"
+              className="bg-transparent outline-none text-sm w-full placeholder:text-slate-400 dark:placeholder:text-white/50"
             />
           </div>
         </div>
@@ -143,7 +146,9 @@ export default function MainLayout({ children }: { children: ReactNode }) {
                 href={item.href}
                 onClick={() => setSidebarOpen(false)}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
-                  active ? "bg-white/10 text-white" : "text-white/80 hover:bg-white/5"
+                  active
+                    ? "bg-black/5 text-slate-900 dark:bg-white/10 dark:text-white"
+                    : "text-slate-700 hover:bg-black/5 dark:text-white/80 dark:hover:bg-white/5"
                 }`}
               >
                 <span className="h-4 w-4">{item.icon}</span>
@@ -209,7 +214,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
         </div>
       </aside>
       <div className="flex-1 flex flex-col">
-        <header className="h-14 border-b border-black/5 dark:border-white/10 bg-white/70 dark:bg-[#0f1218] backdrop-blur flex items-center justify-between px-4">
+        <header className="h-14 border-b border-black/10 dark:border-white/10 bg-white dark:bg-[#0f1218] backdrop-blur flex items-center justify-between px-4">
           <div className="flex items-center gap-3">
             {/* Burger menu button for mobile */}
             <button
@@ -249,7 +254,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
             )}
           </div>
         </header>
-        <main className="flex-1 h-[calc(100vh-3.5rem)] overflow-hidden p-4 md:p-6">{children}</main>
+        <main className="flex-1 h-[calc(100vh-3.5rem)] overflow-hidden p-4 md:p-6 bg-white dark:bg-transparent">{children}</main>
       </div>
     </div>
   );

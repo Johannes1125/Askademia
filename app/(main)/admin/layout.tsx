@@ -37,21 +37,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setMounted(true);
   }, []);
 
-  // Load dark mode preference
+  // Unified theme preference
   useEffect(() => {
-    const stored = typeof window !== "undefined" ? localStorage.getItem("ask_theme") : null;
-    if (stored === "dark") setDark(true);
+    const get = (k: string) => (typeof window !== "undefined" ? localStorage.getItem(k) : null);
+    const t = get("theme");
+    const a = get("ask_theme");
+    if (t === "dark" || (!t && a === "dark")) setDark(true);
   }, []);
 
-  // Apply dark mode
   useEffect(() => {
-    if (dark) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("ask_theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("ask_theme", "light");
-    }
+    const el = document.documentElement;
+    el.classList.toggle("dark", dark);
+    try {
+      localStorage.setItem("theme", dark ? "dark" : "light");
+      localStorage.setItem("ask_theme", dark ? "dark" : "light");
+    } catch {}
   }, [dark]);
 
   useEffect(() => {
@@ -106,14 +106,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#0b1220]">
-        <div className="text-white/60">Checking admin access...</div>
+      <div className="flex items-center justify-center h-screen bg-white text-slate-900 dark:bg-[#0b1220] dark:text-white">
+        <div className="text-black/60 dark:text-white/60">Checking admin access...</div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen bg-[#0b1220] text-white flex overflow-hidden">
+    <div className="h-screen bg-white text-slate-900 dark:bg-[#0b1220] dark:text-white flex overflow-hidden">
       {/* Mobile backdrop */}
       {sidebarOpen && (
         <div
@@ -124,7 +124,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       
       {/* Admin Sidebar */}
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-50 w-72 flex flex-col border-r border-white/10 bg-[#0f1218] text-white transition-transform duration-300 ${
+        className={`fixed md:static inset-y-0 left-0 z-50 w-72 flex flex-col transition-transform duration-300
+        border-r border-black/10 dark:border-white/10 bg-white text-slate-900 dark:bg-[#0f1218] dark:text-white ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
@@ -148,14 +149,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <Cross2Icon className="h-5 w-5" />
             </button>
           </div>
-          <div className="mt-4 flex items-center gap-2 rounded-md bg-white/5 px-3 py-2">
-            <MagnifyingGlassIcon className="h-4 w-4 text-white/60" />
+          <div className="mt-4 flex items-center gap-2 rounded-md px-3 py-2 bg-black/5 text-slate-700 dark:bg-white/5 dark:text-white">
+            <MagnifyingGlassIcon className="h-4 w-4 text-slate-500 dark:text-white/60" />
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search..."
-              className="flex-1 bg-transparent border-0 outline-0 text-sm text-white placeholder:text-white/40"
+              className="flex-1 bg-transparent border-0 outline-0 text-sm text-slate-900 placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/40"
             />
           </div>
         </div>
@@ -235,7 +236,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 border-b border-white/10 bg-[#0f1218] backdrop-blur flex items-center justify-between px-4">
+        <header className="h-14 border-b border-black/10 dark:border-white/10 bg-white dark:bg-[#0f1218] backdrop-blur flex items-center justify-between px-4">
           <div className="flex items-center gap-3">
             {/* Burger menu button for mobile */}
             <button
@@ -266,9 +267,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             )}
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto bg-[#0b1220]">
-          {children}
-        </main>
+        <main className="flex-1 overflow-y-auto bg-white dark:bg-[#0b1220]">{children}</main>
       </div>
     </div>
   );

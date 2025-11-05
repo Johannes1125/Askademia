@@ -4,7 +4,7 @@
   /* Brand colors */
   --brand-yellow: #e4b795;
   --brand-blue: #2f679f;
-  --brand-white: #f2f7fa;
+  --brand-white: #ffffff;
 
   /* Base surfaces */
   --background: #ffffff; /* force pure white for light mode */
@@ -41,6 +41,14 @@ html.dark {
   --app-bg: #0b1220;
 }
 
+/* Ensure explicit light choice overrides OS dark preference */
+html:not(.dark) {
+  --background: #ffffff;
+  --foreground: #0f172a; /* slate-900 */
+  --muted: #64748b; /* slate-500 */
+  --app-bg: #ffffff;
+}
+
 html, body {
   height: 100%;
 }
@@ -52,52 +60,62 @@ body {
     Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
 }
 
+/* Reduce motion for users who prefer less animation */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Utility surfaces */
 .card {
   @apply rounded-xl border border-black/5 dark:border-white/10 bg-white dark:bg-zinc-900 shadow-sm;
 }
 
-/* Custom dark scrollbar styles */
+/* Theme-aware scrollbar */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f1218;
+  background: var(--background);
   border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2a2f3a;
+  background: color-mix(in oklab, var(--foreground) 25%, transparent);
   border-radius: 5px;
-  border: 2px solid #0f1218;
+  border: 2px solid var(--background);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3a3f4a;
+  background: color-mix(in oklab, var(--foreground) 35%, transparent);
 }
 
 ::-webkit-scrollbar-corner {
-  background: #0f1218;
+  background: var(--background);
 }
 
 /* Firefox scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #2a2f3a #0f1218;
+  scrollbar-color: color-mix(in oklab, var(--foreground) 25%, transparent) var(--background);
 }
 
 /* Toastify overrides to match theme */
 .Toastify__toast {
-  background: #0f1218 !important;
-  color: #e5e7eb !important;
-  border: 1px solid rgba(255,255,255,0.1) !important;
+  background: var(--background) !important;
+  color: var(--foreground) !important;
+  border: 1px solid color-mix(in oklab, var(--foreground) 15%, transparent) !important;
   border-radius: 12px !important;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.35) !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15) !important;
 }
 .Toastify__close-button > svg {
-  fill: #94a3b8 !important;
+  fill: var(--muted) !important;
 }
 .Toastify__toast-body {
   font-size: 0.95rem;

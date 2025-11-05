@@ -24,7 +24,8 @@
     "react-dom": "19.2.0",
     "react-markdown": "^10.1.0",
     "react-toastify": "^11.0.5",
-    "recharts": "^3.3.0"
+    "recharts": "^3.3.0",
+    "swr": "^2.2.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -35,6 +36,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.0.1",
     "tailwindcss": "^4",
+    "@next/bundle-analyzer": "16.0.1",
     "typescript": "^5"
   }
 }

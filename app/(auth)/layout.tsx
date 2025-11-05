@@ -10,24 +10,25 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   const pathname = usePathname();
 
   useEffect(() => {
-    const stored = typeof window !== "undefined" ? localStorage.getItem("ask_theme") : null;
-    if (stored === "dark") setDark(true);
+    const get = (k: string) => (typeof window !== 'undefined' ? localStorage.getItem(k) : null);
+    const t = get('theme');
+    const a = get('ask_theme');
+    if (t === 'dark' || (!t && a === 'dark')) setDark(true);
   }, []);
 
   useEffect(() => {
-    if (dark) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("ask_theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("ask_theme", "light");
-    }
+    const el = document.documentElement;
+    el.classList.toggle('dark', dark);
+    try {
+      localStorage.setItem('theme', dark ? 'dark' : 'light');
+      localStorage.setItem('ask_theme', dark ? 'dark' : 'light');
+    } catch {}
   }, [dark]);
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#0b1220]">
+    <div className="min-h-screen bg-white text-slate-900 dark:bg-[#0b1220] dark:text-white">
       {/* Header */}
-      <header className="h-16 border-b border-black/5 dark:border-white/10 bg-white dark:bg-[#0f1218] flex items-center justify-between px-6">
+      <header className="h-16 border-b border-black/10 dark:border-white/10 bg-white dark:bg-[#0f1218] flex items-center justify-between px-6">
         <Link href="/dashboard" className="flex items-center gap-3">
           <div className="h-9 w-9 grid place-items-center rounded-lg" style={{ background: "var(--brand-yellow)" }}>
             <span className="text-[#1f2937] font-bold">A</span>
