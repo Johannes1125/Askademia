@@ -1,3 +1,5 @@
+"use client";
+
 // Dashboard Page
 import {
   ChatBubbleIcon,
@@ -6,6 +8,9 @@ import {
   ArchiveIcon,
 } from "@radix-ui/react-icons";
 import Link from "next/link";
+import { useMemo } from "react";
+import useSWR from "swr";
+import { createClient } from "@/lib/supabase/client";
 
 function StatCard({ title, value, delta, icon, accent }: { title: string; value: string; delta: string; icon: React.ReactNode; accent: "yellow" | "blue" | "green" | "orange" }) {
   const accentBg =
@@ -45,19 +50,42 @@ function UsageBar({ label, value }: { label: string; value: number }) {
 }
 
 export default function DashboardPage() {
+  const supabase = createClient();
+  const startOfMonth = useMemo(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString(), []);
+  const nowIso = useMemo(() => new Date().toISOString(), []);
+
+  const { data: allTime } = useSWR(['user_stats', null, null], async () => {
+    const { data, error } = await supabase.rpc('user_stats', { p_start: null, p_end: null });
+    if (error) throw error;
+    return Array.isArray(data) ? data[0] : data;
+  }, { revalidateOnFocus: false });
+
+  const { data: thisMonth } = useSWR(['user_stats_month', startOfMonth, nowIso], async ([, s, e]) => {
+    const { data, error } = await supabase.rpc('user_stats', { p_start: s, p_end: e });
+    if (error) throw error;
+    return Array.isArray(data) ? data[0] : data;
+  }, { revalidateOnFocus: false });
+
+  const fmt = (n?: number) => (typeof n === 'number' ? n.toLocaleString() : '0');
+  const pct = (part?: number, total?: number) => {
+    if (!part || !total || total === 0) return '+0% this month';
+    const p = Math.round((part / total) * 100);
+    return `+${p}% this month`;
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard title="Total Queries" value="1,234" delta="+12% this month" icon={<ChatBubbleIcon />} accent="yellow" />
-        <StatCard title="Research Papers Analyzed" value="456" delta="+8% this month" icon={<ReaderIcon />} accent="blue" />
-        <StatCard title="Citations Created" value="892" delta="+23% this month" icon={<CheckCircledIcon />} accent="green" />
-        <StatCard title="Documents Checked" value="345" delta="+15% this month" icon={<ArchiveIcon />} accent="orange" />
+        <StatCard title="Total Queries" value={fmt(allTime?.prompts)} delta={pct(thisMonth?.prompts, allTime?.prompts)} icon={<ChatBubbleIcon />} accent="yellow" />
+        <StatCard title="Conversations" value={fmt(allTime?.conversations)} delta={pct(thisMonth?.conversations, allTime?.conversations)} icon={<ReaderIcon />} accent="blue" />
+        <StatCard title="Citations Created" value={fmt(allTime?.citations)} delta={pct(thisMonth?.citations, allTime?.citations)} icon={<CheckCircledIcon />} accent="green" />
+        <StatCard title="Documents Checked" value="0" delta="+0% this month" icon={<ArchiveIcon />} accent="orange" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 card p-5 bg-[#11161d] border-white/10 text-white">
+        <div className="lg:col-span-2 card p-5 bg-white dark:bg-[#11161d] border-black/10 dark:border-white/10 text-slate-900 dark:text-white">
           <h2 className="text-xl font-semibold">Quick Access Tools</h2>
-          <p className="text-sm text-white/60 mb-4">Get started with your most-used features</p>
+          <p className="text-sm text-slate-600 dark:text-white/60 mb-4">Get started with your most-used features</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <ToolCard href="/chat" label="Start Chat" icon={<ChatBubbleIcon />} />
             <ToolCard href="/tools/citation" label="Create Citation" icon={<ReaderIcon />} />
@@ -65,7 +93,7 @@ export default function DashboardPage() {
             <ToolCard href="/tools/grammar" label="Check Content" icon={<ArchiveIcon />} />
           </div>
         </div>
-        <div className="card p-5 bg-[#11161d] border-white/10 text-white">
+        <div className="card p-5 bg-white dark:bg-[#11161d] border-black/10 dark:border-white/10 text-slate-900 dark:text-white">
           <h2 className="text-xl font-semibold mb-4">Weekly Usage</h2>
           <div className="space-y-3">
             <UsageBar label="Mon" value={92} />

@@ -294,3 +294,48 @@ CREATE TRIGGER update_citation_on_update
   FOR EACH ROW
   EXECUTE FUNCTION update_citation_timestamp();
 
+-- Aggregated per-user stats function (respects RLS via auth.uid())
+CREATE OR REPLACE FUNCTION public.user_stats(
+  p_start timestamptz DEFAULT NULL,
+  p_end   timestamptz DEFAULT NULL
+)
+RETURNS TABLE (
+  conversations BIGINT,
+  prompts       BIGINT,
+  citations     BIGINT
+)
+LANGUAGE sql
+STABLE
+AS $$
+  WITH bounds AS (
+    SELECT
+      COALESCE(p_start, to_timestamp(0)) AS start_at,
+      COALESCE(p_end,   NOW())           AS end_at
+  )
+  SELECT
+    (
+      SELECT COUNT(*) FROM conversations c
+      WHERE c.user_id = auth.uid()
+        AND c.created_at >= (SELECT start_at FROM bounds)
+        AND c.created_at <= (SELECT end_at FROM bounds)
+    )::BIGINT AS conversations,
+
+    (
+      SELECT COUNT(*) FROM messages m
+      JOIN conversations c ON c.id = m.conversation_id
+      WHERE c.user_id = auth.uid()
+        AND m.role = 'user'
+        AND m.created_at >= (SELECT start_at FROM bounds)
+        AND m.created_at <= (SELECT end_at FROM bounds)
+    )::BIGINT AS prompts,
+
+    (
+      SELECT COUNT(*) FROM citations ct
+      WHERE ct.user_id = auth.uid()
+        AND ct.created_at >= (SELECT start_at FROM bounds)
+        AND ct.created_at <= (SELECT end_at FROM bounds)
+    )::BIGINT AS citations;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.user_stats(timestamptz, timestamptz) TO authenticated;
+
