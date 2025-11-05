@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     // Fetch conversations with message count
     const { data: conversations, error } = await supabase
       .from('conversations')
-      .select('id, title, created_at, updated_at')
+      .select('id, title, created_at, updated_at, rating, feedback, rated_at')
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false });
 

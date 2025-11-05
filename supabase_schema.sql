@@ -131,6 +131,9 @@ CREATE TABLE IF NOT EXISTS conversations (
   title TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  rating INTEGER CHECK (rating >= 1 AND rating <= 5),
+  feedback TEXT CHECK (LENGTH(feedback) <= 1000),
+  rated_at TIMESTAMPTZ,
   
   -- Index for faster user lookups
   CONSTRAINT fk_conversations_user FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
@@ -139,6 +142,7 @@ CREATE TABLE IF NOT EXISTS conversations (
 -- Create index for faster user lookups
 CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_updated_at ON conversations(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_conversations_rating ON conversations(rating) WHERE rating IS NOT NULL;
 
 -- Enable RLS on conversations
 ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
@@ -227,4 +231,66 @@ CREATE TRIGGER update_conversation_on_message
   AFTER INSERT ON messages
   FOR EACH ROW
   EXECUTE FUNCTION update_conversation_timestamp();
+
+-- Create citations table for storing user citations
+CREATE TABLE IF NOT EXISTS citations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  format TEXT NOT NULL CHECK (format IN ('APA', 'MLA', 'Chicago', 'Harvard', 'IEEE')),
+  full_citation TEXT NOT NULL CHECK (LENGTH(full_citation) <= 2000),
+  in_text_citation TEXT NOT NULL CHECK (LENGTH(in_text_citation) <= 200),
+  title TEXT,
+  authors TEXT,
+  year TEXT,
+  url TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Create index for faster user lookups
+CREATE INDEX IF NOT EXISTS idx_citations_user_id ON citations(user_id);
+CREATE INDEX IF NOT EXISTS idx_citations_created_at ON citations(user_id, created_at DESC);
+
+-- Enable RLS on citations
+ALTER TABLE citations ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Users can only view their own citations
+CREATE POLICY "Users can view own citations" ON citations
+  FOR SELECT
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+-- Policy: Users can insert their own citations
+CREATE POLICY "Users can create own citations" ON citations
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+-- Policy: Users can update their own citations
+CREATE POLICY "Users can update own citations" ON citations
+  FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Policy: Users can delete their own citations
+CREATE POLICY "Users can delete own citations" ON citations
+  FOR DELETE
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+-- Trigger to update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_citation_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS update_citation_on_update ON citations;
+CREATE TRIGGER update_citation_on_update
+  BEFORE UPDATE ON citations
+  FOR EACH ROW
+  EXECUTE FUNCTION update_citation_timestamp();
 

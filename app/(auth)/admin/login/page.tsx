@@ -25,9 +25,24 @@ export default function AdminLoginPage() {
     if (error) {
       toast.error(error.message);
       setLoading(false);
-    } else {
-      // Check if user is admin (you'll need to verify role from profiles table)
-      // For now, just redirect - add role check later
+      return;
+    }
+
+    // Check if user is admin
+    if (data.user) {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profileError || !profile || profile.role !== 'admin') {
+        toast.error("Access denied. Admin privileges required.");
+        await supabase.auth.signOut();
+        setLoading(false);
+        return;
+      }
+
       toast.success("Logged in as admin!");
       router.push("/admin");
       router.refresh();

@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { toast } from "react-toastify";
+import * as Dialog from "@radix-ui/react-dialog";
 import {
   DashboardIcon,
   ChatBubbleIcon,
@@ -31,7 +32,6 @@ const primaryNav: NavItem[] = [
   { href: "/citations", label: "Citations", icon: <BookmarkIcon /> },
   { href: "/tools/grammar", label: "Grammar Checker", icon: <CheckCircledIcon /> },
   { href: "/analytics", label: "Analytics", icon: <BarChartIcon /> },
-  { href: "/admin", label: "Admin Panel", icon: <LockClosedIcon /> },
 ];
 
 export default function MainLayout({ children }: { children: ReactNode }) {
@@ -40,16 +40,22 @@ export default function MainLayout({ children }: { children: ReactNode }) {
   const [query, setQuery] = useState("");
   const [dark, setDark] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const { user } = useAuth();
   const supabase = createClient();
 
-  const handleLogout = async () => {
-    // Show confirmation dialog
-    const confirmed = window.confirm("Are you sure you want to log out?");
-    if (!confirmed) {
-      return;
-    }
+  // Don't show main layout for admin pages (they have their own layout)
+  const isAdminPage = pathname?.startsWith('/admin') && !pathname?.includes('/login');
 
+  // Ensure Dialog only renders on client to avoid hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
     const { error } = await supabase.auth.signOut();
     if (!error) {
       toast.success("Logged out successfully");
@@ -57,6 +63,8 @@ export default function MainLayout({ children }: { children: ReactNode }) {
       window.location.href = "/login";
     } else {
       toast.error(error.message || "Failed to log out");
+      setLoggingOut(false);
+      setLogoutModalOpen(false);
     }
   };
 
@@ -74,6 +82,11 @@ export default function MainLayout({ children }: { children: ReactNode }) {
       localStorage.setItem("ask_theme", "light");
     }
   }, [dark]);
+
+  // If admin page, just render children without main layout
+  if (isAdminPage) {
+    return <>{children}</>;
+  }
 
   return (
     <div className="h-screen bg-[var(--brand-white)] text-[var(--foreground)] flex dark:bg-[#0b1220] dark:text-[#e5e7eb] overflow-hidden">
@@ -144,12 +157,54 @@ export default function MainLayout({ children }: { children: ReactNode }) {
             <Link href="/settings" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2 text-sm text-white/80 hover:text-white">
               <GearIcon /> Settings
             </Link>
+            {mounted && (
+              <Dialog.Root open={logoutModalOpen} onOpenChange={setLogoutModalOpen}>
+                <Dialog.Trigger asChild>
+                  <button
+                    className="flex items-center gap-2 text-left text-sm text-white/80 hover:text-white"
+                  >
+                    <ExitIcon /> Logout
+                  </button>
+                </Dialog.Trigger>
+                <Dialog.Portal>
+                <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
+                <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md rounded-xl bg-white dark:bg-[#11161d] p-6 shadow-xl z-50 border border-gray-200 dark:border-white/10">
+                  <Dialog.Title className="text-lg font-semibold text-black dark:text-white mb-2">
+                    Confirm Logout
+                  </Dialog.Title>
+                  <Dialog.Description className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                    Are you sure you want to log out? You will need to sign in again to access your account.
+                  </Dialog.Description>
+                  <div className="flex gap-3 justify-end">
+                    <Dialog.Close asChild>
+                      <button
+                        disabled={loggingOut}
+                        className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-[#0f1218] text-black dark:text-white hover:bg-gray-50 dark:hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Cancel
+                      </button>
+                    </Dialog.Close>
+                    <button
+                      onClick={handleLogout}
+                      disabled={loggingOut}
+                      className="px-4 py-2 text-sm font-medium rounded-lg text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{ background: "var(--brand-blue)" }}
+                    >
+                      {loggingOut ? "Logging out..." : "Logout"}
+                    </button>
+                  </div>
+                </Dialog.Content>
+              </Dialog.Portal>
+            </Dialog.Root>
+          )}
+          {!mounted && (
             <button
-              onClick={handleLogout}
+              onClick={() => setLogoutModalOpen(true)}
               className="flex items-center gap-2 text-left text-sm text-white/80 hover:text-white"
             >
               <ExitIcon /> Logout
             </button>
+          )}
           </div>
         </div>
       </aside>

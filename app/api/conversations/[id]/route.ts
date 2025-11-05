@@ -22,7 +22,7 @@ export async function GET(
     // Fetch conversation
     const { data: conversation, error: convError } = await supabase
       .from('conversations')
-      .select('id, title, created_at, updated_at, user_id')
+      .select('id, title, created_at, updated_at, user_id, rating, feedback, rated_at')
       .eq('id', id)
       .single();
 

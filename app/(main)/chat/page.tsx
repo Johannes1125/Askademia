@@ -5,9 +5,17 @@ import { useMemo, useState, useRef, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { toast } from "react-toastify";
 import { PaperPlaneIcon, PlusIcon, TrashIcon, ReloadIcon } from "@radix-ui/react-icons";
+import ReactMarkdown from "react-markdown";
 
 type Message = { id: string; role: "user" | "assistant"; content: string };
-type Conversation = { id: string; title: string; messages: Message[] };
+type Conversation = { 
+  id: string; 
+  title: string; 
+  messages: Message[];
+  rating?: number | null;
+  feedback?: string | null;
+  rated_at?: string | null;
+};
 
 export default function ChatPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -19,8 +27,33 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingConversations, setLoadingConversations] = useState(true);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [showRatingPrompt, setShowRatingPrompt] = useState(false);
+  const [submittingRating, setSubmittingRating] = useState(false);
+  const [selectedRating, setSelectedRating] = useState<number | null>(null);
+  const [feedbackText, setFeedbackText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // Ensure Dialog only renders on client to avoid hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Research-focused prompt templates
+  const promptTemplates = [
+    "Create a research topic for me",
+    "Help me find academic sources",
+    "Explain this research methodology",
+    "Format this citation in APA style",
+    "Review my research question",
+    "Suggest research databases",
+    "Help with literature review",
+    "Improve my academic writing",
+  ];
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -78,14 +111,17 @@ export default function ChatPage() {
     }
   }
 
-  async function deleteConversation(conversationId: string, e: React.MouseEvent) {
+  function openDeleteModal(conversationId: string, e: React.MouseEvent) {
     e.stopPropagation(); // Prevent selecting the conversation when clicking delete
-    
-    // Show confirmation toast with custom action
-    const confirmed = window.confirm("Are you sure you want to delete this conversation? This action cannot be undone.");
-    if (!confirmed) {
-      return;
-    }
+    setConversationToDelete(conversationId);
+    setDeleteModalOpen(true);
+  }
+
+  async function confirmDeleteConversation() {
+    if (!conversationToDelete) return;
+
+    setDeleting(true);
+    const conversationId = conversationToDelete;
 
     // Check if it's a database conversation (UUID format)
     const isDatabaseConversation = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(conversationId);
@@ -102,13 +138,15 @@ export default function ChatPage() {
       } catch (error: any) {
         console.error("Error deleting conversation:", error);
         toast.error("Failed to delete conversation");
+        setDeleting(false);
+        setDeleteModalOpen(false);
         return;
       }
     }
 
     // Remove from local state and handle active conversation
     setConversations((prev) => {
-      const remaining = prev.filter((c) => c.id !== conversationId);
+      const remaining = prev.filter((c: Conversation) => c.id !== conversationId);
       
       // If we deleted the active conversation, switch to another one
       if (activeId === conversationId) {
@@ -124,6 +162,9 @@ export default function ChatPage() {
     });
     
     toast.success("Conversation deleted");
+    setDeleteModalOpen(false);
+    setConversationToDelete(null);
+    setDeleting(false);
   }
 
   // Load conversations from Supabase on mount and when needed
@@ -142,7 +183,7 @@ export default function ChatPage() {
       if (loadedConversations.length > 0) {
         setConversations(loadedConversations);
         // Only set active if we don't have one or if the current one was deleted
-        if (!activeId || !loadedConversations.find(c => c.id === activeId)) {
+        if (!activeId || !loadedConversations.find((c: Conversation) => c.id === activeId)) {
           setActiveId(loadedConversations[0].id);
         }
       } else {
@@ -163,6 +204,91 @@ export default function ChatPage() {
     loadConversations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Check if conversation needs rating
+  const checkConversationRating = async (conversationId: string) => {
+    try {
+      const response = await fetch(`/api/conversations/${conversationId}/rating`);
+      if (!response.ok) return;
+      
+      const data = await response.json();
+      
+      // Only show prompt if not already rated
+      if (!data.rated && active && active.id === conversationId && active.messages.length >= 2) {
+        // Check if last message is from assistant (not loading)
+        const lastMessage = active.messages[active.messages.length - 1];
+        if (lastMessage.role === 'assistant' && lastMessage.content && !loading) {
+          setShowRatingPrompt(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking conversation rating:', error);
+    }
+  };
+
+  // Submit rating and feedback
+  const submitRating = async () => {
+    if (!activeId || !selectedRating) return;
+    
+    setSubmittingRating(true);
+    try {
+      const response = await fetch(`/api/conversations/${activeId}/rating`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          rating: selectedRating,
+          feedback: feedbackText.trim() || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to submit rating');
+      }
+
+      // Update local conversation state
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === activeId
+            ? { ...c, rating: selectedRating, feedback: feedbackText.trim() || null }
+            : c
+        )
+      );
+
+      toast.success('Thank you for your feedback!');
+      setShowRatingPrompt(false);
+      setSelectedRating(null);
+      setFeedbackText("");
+    } catch (error: any) {
+      console.error('Error submitting rating:', error);
+      toast.error(error.message || 'Failed to submit rating');
+    } finally {
+      setSubmittingRating(false);
+    }
+  };
+
+  // Check rating status when active conversation or messages change
+  useEffect(() => {
+    if (!activeId || !active) {
+      setShowRatingPrompt(false);
+      return;
+    }
+    
+    // Only check if conversation has messages and is not loading
+    if (active.messages.length >= 2 && !loading) {
+      checkConversationRating(activeId);
+    } else {
+      setShowRatingPrompt(false);
+    }
+  }, [activeId, active?.messages.length, loading]);
+
+  function handlePromptClick(prompt: string) {
+    setInput(prompt);
+    // Optionally auto-send or just populate the input
+    // For now, just populate so user can edit if needed
+  }
 
   async function sendMessage() {
     if (!active || !activeId) return;
@@ -225,16 +351,52 @@ export default function ChatPage() {
           const userMsgData = await userMsgResponse.json();
           userMessageId = userMsgData.message.id;
 
-          // Update conversation title if it's the first message
+          // Update conversation title if it's the first message - use AI to generate a memorable title
           if (active.messages.length === 0) {
-            const newTitle = text.slice(0, 40);
-            await fetch(`/api/conversations/${activeId}`, {
-              method: "PATCH",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ title: newTitle }),
-            }).catch(err => console.error("Error updating title:", err));
+            try {
+              // Generate AI title
+              const titleResponse = await fetch('/api/conversations/generate-title', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ firstMessage: text }),
+              });
+
+              let newTitle = text.slice(0, 40); // Fallback
+              if (titleResponse.ok) {
+                const titleData = await titleResponse.json();
+                newTitle = titleData.title || text.slice(0, 40);
+              }
+
+              await fetch(`/api/conversations/${activeId}`, {
+                method: "PATCH",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ title: newTitle }),
+              }).catch(err => console.error("Error updating title:", err));
+
+              // Update local state with new title
+              setConversations((prev) =>
+                prev.map((c) =>
+                  c.id === activeId
+                    ? { ...c, title: newTitle }
+                    : c
+                )
+              );
+            } catch (titleError) {
+              console.error("Error generating title:", titleError);
+              // Fallback to simple title
+              const fallbackTitle = text.slice(0, 40);
+              await fetch(`/api/conversations/${activeId}`, {
+                method: "PATCH",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ title: fallbackTitle }),
+              }).catch(err => console.error("Error updating title:", err));
+            }
           }
         }
       } catch (error: any) {
@@ -260,6 +422,7 @@ export default function ChatPage() {
       content: text,
     };
 
+    // Update local title temporarily (will be updated with AI title if first message)
     setConversations((prev) =>
       prev.map((c) =>
         c.id === activeId
@@ -312,108 +475,158 @@ export default function ChatPage() {
         }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.error || "Failed to get response");
+        // Try to get error message from response
+        let errorMessage = "Failed to get response";
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
-      // Save assistant message to Supabase (only if conversation exists in DB)
-      if (conversationExists) {
-        try {
-          const assistantMsgResponse = await fetch(`/api/conversations/${activeId}/messages`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              role: "assistant",
-              content: data.message,
-            }),
-          });
+      // Handle streaming response
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let fullContent = "";
 
-          if (assistantMsgResponse.ok) {
-            const assistantMsgData = await assistantMsgResponse.json();
-            // Update with actual message ID from Supabase
-            setConversations((prev) =>
-              prev.map((c) =>
-                c.id === activeId
-                  ? {
-                      ...c,
-                      messages: c.messages.map((m) =>
-                        m.id === assistantMessageId
-                          ? { id: assistantMsgData.message.id, role: "assistant", content: data.message }
-                          : m
-                      ),
-                    }
-                  : c
-              )
-            );
-          } else {
-            // Don't throw, just log and continue
-            let errorData: any = {};
+      if (!reader) {
+        throw new Error("No response body");
+      }
+
+      // Read stream chunks
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6).trim();
+            
+            if (data === '[DONE]') {
+              // Streaming complete, save to database
+              if (conversationExists) {
+                try {
+                  const assistantMsgResponse = await fetch(`/api/conversations/${activeId}/messages`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                      role: "assistant",
+                      content: fullContent,
+                    }),
+                  });
+
+                  if (assistantMsgResponse.ok) {
+                    const assistantMsgData = await assistantMsgResponse.json();
+                    // Update with actual message ID from Supabase
+                    setConversations((prev) =>
+                      prev.map((c) =>
+                        c.id === activeId
+                          ? {
+                              ...c,
+                              messages: c.messages.map((m) =>
+                                m.id === assistantMessageId
+                                  ? { id: assistantMsgData.message.id, role: "assistant", content: fullContent }
+                                  : m
+                              ),
+                            }
+                          : c
+                      )
+                    );
+                    // Check if we should show rating prompt (after a delay)
+                    setTimeout(() => {
+                      checkConversationRating(activeId);
+                    }, 1000);
+                  } else {
+                    // Still update UI with local ID
+                    setConversations((prev) =>
+                      prev.map((c) =>
+                        c.id === activeId
+                          ? {
+                              ...c,
+                              messages: c.messages.map((m) =>
+                                m.id === assistantMessageId
+                                  ? { ...m, content: fullContent }
+                                  : m
+                              ),
+                            }
+                          : c
+                      )
+                    );
+                  }
+                } catch (saveError) {
+                  console.error("Error saving assistant message:", saveError);
+                  // Still update UI
+                  setConversations((prev) =>
+                    prev.map((c) =>
+                      c.id === activeId
+                        ? {
+                            ...c,
+                            messages: c.messages.map((m) =>
+                              m.id === assistantMessageId
+                                ? { ...m, content: fullContent }
+                                : m
+                            ),
+                          }
+                        : c
+                    )
+                  );
+                }
+              } else {
+                // Conversation doesn't exist in DB, just update UI with local ID
+                setConversations((prev) =>
+                  prev.map((c) =>
+                    c.id === activeId
+                      ? {
+                          ...c,
+                          messages: c.messages.map((m) =>
+                            m.id === assistantMessageId
+                              ? { ...m, content: fullContent }
+                              : m
+                          ),
+                        }
+                      : c
+                  )
+                );
+              }
+              break;
+            }
+
             try {
-              const text = await assistantMsgResponse.text();
-              if (text) {
-                errorData = JSON.parse(text);
+              const parsed = JSON.parse(data);
+              if (parsed.error) {
+                throw new Error(parsed.error);
+              }
+              if (parsed.content) {
+                fullContent += parsed.content;
+                // Update UI in real-time as content streams
+                setConversations((prev) =>
+                  prev.map((c) =>
+                    c.id === activeId
+                      ? {
+                          ...c,
+                          messages: c.messages.map((m) =>
+                            m.id === assistantMessageId
+                              ? { ...m, content: fullContent }
+                              : m
+                          ),
+                        }
+                      : c
+                  )
+                );
               }
             } catch (parseError) {
-              // Ignore parse errors
+              // Skip invalid JSON lines
             }
-            console.error("Error saving assistant message:", {
-              status: assistantMsgResponse.status,
-              error: errorData,
-            });
-            // Still update UI with the response using local ID
-            setConversations((prev) =>
-              prev.map((c) =>
-                c.id === activeId
-                  ? {
-                      ...c,
-                      messages: c.messages.map((m) =>
-                        m.id === assistantMessageId
-                          ? { ...m, content: data.message }
-                          : m
-                      ),
-                    }
-                  : c
-              )
-            );
           }
-        } catch (error: any) {
-          console.error("Error saving assistant message:", error);
-          // Still update UI with the response
-          setConversations((prev) =>
-            prev.map((c) =>
-              c.id === activeId
-                ? {
-                    ...c,
-                    messages: c.messages.map((m) =>
-                      m.id === assistantMessageId
-                        ? { ...m, content: data.message }
-                        : m
-                    ),
-                  }
-                : c
-            )
-          );
         }
-      } else {
-        // Conversation doesn't exist in DB, just update UI with local ID
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.id === activeId
-              ? {
-                  ...c,
-                  messages: c.messages.map((m) =>
-                    m.id === assistantMessageId
-                      ? { ...m, content: data.message }
-                      : m
-                  ),
-                }
-              : c
-          )
-        );
       }
     } catch (error: any) {
       console.error("Error sending message:", error);
@@ -488,7 +701,7 @@ export default function ChatPage() {
                   </button>
                   {isDatabaseConv && (
                     <button
-                      onClick={(e) => deleteConversation(c.id, e)}
+                      onClick={(e) => openDeleteModal(c.id, e)}
                       className="absolute right-2 p-1.5 rounded hover:bg-red-500/20 text-white/60 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
                       title="Delete conversation"
                     >
@@ -538,13 +751,37 @@ export default function ChatPage() {
               {active.messages.map((m) => (
                 <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div
-                    className={`max-w-[85%] md:max-w-[70%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${
+                    className={`max-w-[85%] md:max-w-[70%] rounded-xl px-3 py-2 text-sm ${
                       m.role === "user"
-                        ? "bg-[var(--brand-blue)] text-white"
+                        ? "bg-[var(--brand-blue)] text-white whitespace-pre-wrap"
                         : "bg-white/5"
                     }`}
                   >
-                    {m.content || (
+                    {m.content ? (
+                      m.role === "assistant" ? (
+                        <div className="prose prose-invert prose-sm max-w-none">
+                          <ReactMarkdown
+                            components={{
+                              h1: ({node, ...props}: any) => <h1 className="text-lg font-semibold mt-2 mb-1 text-white" {...props} />,
+                              h2: ({node, ...props}: any) => <h2 className="text-base font-semibold mt-2 mb-1 text-white" {...props} />,
+                              h3: ({node, ...props}: any) => <h3 className="text-sm font-semibold mt-2 mb-1 text-white" {...props} />,
+                              p: ({node, ...props}: any) => <p className="mb-2 leading-relaxed text-white/90" {...props} />,
+                              strong: ({node, ...props}: any) => <strong className="font-semibold text-white" {...props} />,
+                              em: ({node, ...props}: any) => <em className="italic text-white/90" {...props} />,
+                              ul: ({node, ...props}: any) => <ul className="list-disc list-inside mb-2 space-y-1 text-white/90" {...props} />,
+                              ol: ({node, ...props}: any) => <ol className="list-decimal list-inside mb-2 space-y-1 text-white/90" {...props} />,
+                              li: ({node, ...props}: any) => <li className="ml-2" {...props} />,
+                              code: ({node, ...props}: any) => <code className="bg-white/10 px-1 py-0.5 rounded text-xs text-white" {...props} />,
+                              pre: ({node, ...props}: any) => <pre className="bg-white/10 p-2 rounded mb-2 overflow-x-auto text-white/90" {...props} />,
+                            }}
+                          >
+                            {m.content}
+                          </ReactMarkdown>
+                        </div>
+                      ) : (
+                        m.content
+                      )
+                    ) : (
                       <div className="flex items-center gap-2">
                         <div className="h-2 w-2 bg-white/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                         <div className="h-2 w-2 bg-white/40 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -555,10 +792,74 @@ export default function ChatPage() {
                 </div>
               ))}
               <div ref={messagesEndRef} />
+              
+              {/* Rating Prompt */}
+              {showRatingPrompt && active && (
+                <div className="mt-4 p-4 rounded-lg bg-white/5 border border-white/10">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-white">Rate this conversation</h3>
+                    <button
+                      onClick={() => setShowRatingPrompt(false)}
+                      className="text-white/60 hover:text-white text-sm"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="mb-3">
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          onClick={() => setSelectedRating(star)}
+                          className={`text-2xl transition-colors ${
+                            selectedRating && star <= selectedRating
+                              ? 'text-yellow-400'
+                              : 'text-white/30 hover:text-white/50'
+                          }`}
+                          disabled={submittingRating}
+                        >
+                          ★
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <textarea
+                    value={feedbackText}
+                    onChange={(e) => setFeedbackText(e.target.value)}
+                    placeholder="Optional: Share your feedback..."
+                    className="w-full rounded-lg bg-[#0f1218] border border-white/10 px-3 py-2 text-sm outline-none focus:border-white/20 mb-3 resize-none"
+                    rows={3}
+                    disabled={submittingRating}
+                    maxLength={1000}
+                  />
+                  <button
+                    onClick={submitRating}
+                    disabled={!selectedRating || submittingRating}
+                    className="w-full px-4 py-2 text-sm font-medium rounded-lg text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ background: "var(--brand-blue)" }}
+                  >
+                    {submittingRating ? 'Submitting...' : 'Submit Feedback'}
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
         <div className="border-t border-white/10 p-3 flex-shrink-0">
+          {/* Prompt Templates - Show when conversation is empty or input is empty */}
+          {active && active.messages.length === 0 && !input.trim() && (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {promptTemplates.map((prompt, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handlePromptClick(prompt)}
+                  className="px-3 py-1.5 text-xs rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white/80 hover:text-white transition-colors"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <input
               value={input}
@@ -590,12 +891,39 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Keep the confirmation modal for clearing chat if needed */}
-      <Dialog.Root>
-        <Dialog.Trigger asChild>
-          <button className="hidden" />
-        </Dialog.Trigger>
+      {/* Delete Confirmation Modal */}
+      {mounted && (
+        <Dialog.Root open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+          <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md rounded-xl bg-white dark:bg-[#11161d] p-6 shadow-xl z-50 border border-gray-200 dark:border-white/10">
+            <Dialog.Title className="text-lg font-semibold text-black dark:text-white mb-2">
+              Delete Conversation
+            </Dialog.Title>
+            <Dialog.Description className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+              Are you sure you want to delete this conversation? This action cannot be undone and all messages will be permanently deleted.
+            </Dialog.Description>
+            <div className="flex gap-3 justify-end">
+              <Dialog.Close asChild>
+                <button
+                  disabled={deleting}
+                  className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-[#0f1218] text-black dark:text-white hover:bg-gray-50 dark:hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+              </Dialog.Close>
+              <button
+                onClick={confirmDeleteConversation}
+                disabled={deleting}
+                className="px-4 py-2 text-sm font-medium rounded-lg text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed bg-red-600 hover:bg-red-700"
+              >
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
       </Dialog.Root>
+      )}
     </div>
   );
 }

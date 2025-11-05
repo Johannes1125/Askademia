@@ -42,11 +42,15 @@ export default async function proxy(request: NextRequest) {
   }
 
   // Protect admin routes - redirect to login if not authenticated
-  if (!user && request.nextUrl.pathname.startsWith('/admin')) {
+  // BUT exclude /admin/login itself to avoid redirect loop
+  if (!user && request.nextUrl.pathname.startsWith('/admin') && request.nextUrl.pathname !== '/admin/login') {
     const url = request.nextUrl.clone()
     url.pathname = '/admin/login'
     return NextResponse.redirect(url)
   }
+
+  // Don't redirect authenticated users from admin/login - let them stay there
+  // (they might be logging in as admin)
 
   return supabaseResponse
 }
