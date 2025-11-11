@@ -23,6 +23,8 @@ import {
   MoonIcon,
   HamburgerMenuIcon,
   Cross2Icon,
+  QuestionMarkIcon,
+  Pencil2Icon,
 } from "@radix-ui/react-icons";
 
 type NavItem = { href: string; label: string; icon: ReactNode };
@@ -32,6 +34,8 @@ const primaryNav: NavItem[] = [
   { href: "/chat", label: "Chat", icon: <ChatBubbleIcon /> },
   { href: "/citations", label: "Citations", icon: <BookmarkIcon /> },
   { href: "/tools/grammar", label: "Grammar Checker", icon: <CheckCircledIcon /> },
+  { href: "/tools/questions", label: "Question Generator", icon: <QuestionMarkIcon /> },
+  { href: "/workspace", label: "Workspace", icon: <Pencil2Icon /> },
   { href: "/analytics", label: "Analytics", icon: <BarChartIcon /> },
 ];
 

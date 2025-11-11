@@ -4,11 +4,14 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { toast } from "react-toastify";
-import { PaperPlaneIcon, PlusIcon, TrashIcon, ReloadIcon, DownloadIcon } from "@radix-ui/react-icons";
+import { PaperPlaneIcon, PlusIcon, TrashIcon, ReloadIcon, DownloadIcon, BookmarkIcon, ReaderIcon } from "@radix-ui/react-icons";
 import ReactMarkdown from "react-markdown";
 import { jsPDF } from "jspdf";
 import { Document, Packer, Paragraph, TextRun } from "docx";
 import { saveAs } from "file-saver";
+import { WorkspaceQuickAddButton } from "@/components/workspace/QuickAdd";
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Message = { id: string; role: "user" | "assistant"; content: string };
 type Conversation = { 
@@ -38,6 +41,7 @@ export default function ChatPage() {
   const [submittingRating, setSubmittingRating] = useState(false);
   const [selectedRating, setSelectedRating] = useState<number | null>(null);
   const [feedbackText, setFeedbackText] = useState("");
+  const [messageReactions, setMessageReactions] = useState<Record<string, "like" | "dislike">>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
@@ -287,6 +291,32 @@ export default function ChatPage() {
     }
   }, [activeId, active?.messages.length, loading]);
 
+  useEffect(() => {
+    if (!activeId || !UUID_REGEX.test(activeId)) {
+      setMessageReactions({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/messages/feedback?conversationId=${activeId}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load reactions');
+        if (cancelled) return;
+        const map: Record<string, "like" | "dislike"> = {};
+        (data.feedback || []).forEach((fb: any) => {
+          if (fb.message_id && (fb.reaction === 'like' || fb.reaction === 'dislike')) {
+            map[fb.message_id] = fb.reaction;
+          }
+        });
+        setMessageReactions(map);
+      } catch (error) {
+        console.error('Error loading message feedback', error);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [activeId]);
+
   function handlePromptClick(prompt: string) {
     setInput(prompt);
     // Optionally auto-send or just populate the input
@@ -472,7 +502,7 @@ export default function ChatPage() {
             const fontSize = 18 - (level * 2);
             
             doc.setFontSize(fontSize);
-            doc.setFont(undefined, 'bold');
+            doc.setFont('helvetica', 'bold');
             const headerLines = doc.splitTextToSize(headerText, pageWidth);
             doc.text(headerLines, margin, yPos);
             yPos += headerLines.length * (fontSize + 2) + 10;
@@ -488,7 +518,7 @@ export default function ChatPage() {
           
           if (processedLine.trim()) {
             doc.setFontSize(10);
-            doc.setFont(undefined, 'normal');
+            doc.setFont('helvetica', 'normal');
             const textLines = doc.splitTextToSize(processedLine, pageWidth);
             doc.text(textLines, margin, yPos);
             yPos += textLines.length * 12 + 5;
@@ -614,18 +644,22 @@ export default function ChatPage() {
     }
   }
 
-  async function sendMessage() {
+  async function sendMessage(customText?: string) {
     if (!active || !activeId) return;
     
-    const text = input.trim();
+    const text = (customText ?? input).trim();
     if (!text || loading) return;
 
-    setInput("");
+    if (!customText) {
+      setInput("");
+    } else {
+      setInput("");
+    }
     setLoading(true);
 
     // Check if conversation exists in database (check if it's a valid UUID from database)
     // UUIDs are typically 36 characters with dashes: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-    const conversationExists = active.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(active.id);
+    const conversationExists = active.id && UUID_REGEX.test(active.id);
     
     // Save user message to Supabase (only if conversation exists in DB)
     let userMessageId: string;
@@ -972,6 +1006,53 @@ export default function ChatPage() {
     }
   }
 
+  const handleReaction = async (messageId: string, reaction: "like" | "dislike") => {
+    if (!activeId) return;
+    const previous = messageReactions[messageId];
+    const nextReaction = previous === reaction ? undefined : reaction;
+    setMessageReactions((prev) => {
+      const updated = { ...prev };
+      if (nextReaction) updated[messageId] = nextReaction; else delete updated[messageId];
+      return updated;
+    });
+    try {
+      const res = await fetch('/api/messages/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId: activeId, messageId, reaction: nextReaction ?? null }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save reaction');
+    } catch (error: any) {
+      toast.error(error.message || 'Could not save reaction');
+      setMessageReactions((prev) => {
+        const updated = { ...prev };
+        if (previous) updated[messageId] = previous; else delete updated[messageId];
+        return updated;
+      });
+    }
+  };
+
+  const handleReprompt = (messageId: string) => {
+    if (!active) return;
+    const messageIndex = active.messages.findIndex((msg) => msg.id === messageId);
+    if (messageIndex <= 0) {
+      toast.error('No previous prompt to reprompt');
+      return;
+    }
+    const previousUserMessage = [...active.messages]
+      .slice(0, messageIndex)
+      .reverse()
+      .find((msg) => msg.role === 'user');
+
+    if (!previousUserMessage) {
+      toast.error('No user prompt found for this response');
+      return;
+    }
+
+    sendMessage(previousUserMessage.content);
+  };
+
   return (
     <div className="flex gap-4 h-[calc(100vh-4rem)] overflow-hidden border border-theme rounded-xl bg-app shadow-xl backdrop-blur-sm">
       {/* Sidebar */}
@@ -1164,6 +1245,61 @@ export default function ChatPage() {
                         <div className="h-2 w-2 bg-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                       </div>
                     )}
+                    {m.role === "assistant" && m.content && (
+                      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                        <button
+                          onClick={() => handleReaction(m.id, "like")}
+                          className={`flex items-center gap-1 px-2.5 py-1 rounded-full border border-theme transition-colors ${
+                            messageReactions[m.id] === 'like' ? 'bg-[var(--brand-blue)]/15 text-[var(--brand-blue)] border-[var(--brand-blue)]/40' : 'text-muted hover:text-foreground'
+                          }`}
+                          title="Like response"
+                        >
+                          <span role="img" aria-label="Like">👍</span>
+                          <span className="hidden sm:inline">Like</span>
+                        </button>
+                        <button
+                          onClick={() => handleReaction(m.id, "dislike")}
+                          className={`flex items-center gap-1 px-2.5 py-1 rounded-full border border-theme transition-colors ${
+                            messageReactions[m.id] === 'dislike' ? 'bg-red-500/20 text-red-400 border-red-500/40' : 'text-muted hover:text-foreground'
+                          }`}
+                          title="Dislike response"
+                        >
+                          <span role="img" aria-label="Dislike">👎</span>
+                          <span className="hidden sm:inline">Dislike</span>
+                        </button>
+                        <button
+                          onClick={() => handleReprompt(m.id)}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-theme text-muted hover:text-foreground transition-colors"
+                          title="Reprompt"
+                        >
+                          <ReloadIcon className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Reprompt</span>
+                        </button>
+                        <WorkspaceQuickAddButton
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-theme text-muted hover:text-foreground transition-colors"
+                          derive={() => ({
+                            title: `${active?.title || 'Chat'} response`,
+                            content: m.content,
+                            section: 'notes',
+                          })}
+                        >
+                          <BookmarkIcon className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Save</span>
+                        </WorkspaceQuickAddButton>
+                        <WorkspaceQuickAddButton
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-theme text-muted hover:text-foreground transition-colors"
+                          derive={() => ({
+                            title: `${active?.title || 'Chat'} citation`,
+                            content: m.content,
+                            section: 'references',
+                            tags: ['citation']
+                          })}
+                        >
+                          <ReaderIcon className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Save Citation</span>
+                        </WorkspaceQuickAddButton>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1253,7 +1389,7 @@ export default function ChatPage() {
               disabled={loading || !active}
             />
             <button
-              onClick={sendMessage}
+              onClick={() => sendMessage()}
               className="h-12 w-12 grid place-items-center rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-110 active:scale-95 shadow-lg hover:shadow-xl"
               style={{ background: "var(--brand-yellow)", color: "#1f2937" }}
               disabled={!input.trim() || loading || !active}

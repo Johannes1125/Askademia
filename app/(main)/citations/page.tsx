@@ -2,10 +2,11 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { CopyIcon, CheckIcon, TrashIcon, DownloadIcon } from '@radix-ui/react-icons';
+import { CopyIcon, CheckIcon, TrashIcon, DownloadIcon, BookmarkIcon } from '@radix-ui/react-icons';
 import { jsPDF } from 'jspdf';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
+import { WorkspaceQuickAddButton } from '@/components/workspace/QuickAdd';
 
 type Format = 'APA' | 'MLA' | 'Chicago' | 'Harvard' | 'IEEE';
 
@@ -223,7 +224,7 @@ export default function CitationsPage() {
           const fontSize = 18 - (level * 2);
           
           doc.setFontSize(fontSize);
-          doc.setFont(undefined, 'bold');
+          doc.setFont('helvetica', 'bold');
           const headerLines = doc.splitTextToSize(headerText, pageWidth);
           doc.text(headerLines, margin, yPos);
           yPos += headerLines.length * (fontSize + 2) + 10;
@@ -238,7 +239,7 @@ export default function CitationsPage() {
         
         if (processedLine.trim()) {
           doc.setFontSize(10);
-          doc.setFont(undefined, 'normal');
+          doc.setFont('helvetica', 'normal');
           const textLines = doc.splitTextToSize(processedLine, pageWidth);
           doc.text(textLines, margin, yPos);
           yPos += textLines.length * 12 + 5;
@@ -469,7 +470,7 @@ export default function CitationsPage() {
             const fontSize = 18 - (level * 2);
             
             doc.setFontSize(fontSize);
-            doc.setFont(undefined, 'bold');
+            doc.setFont('helvetica', 'bold');
             const headerLines = doc.splitTextToSize(headerText, pageWidth);
             doc.text(headerLines, margin, yPos);
             yPos += headerLines.length * (fontSize + 2) + 10;
@@ -485,7 +486,7 @@ export default function CitationsPage() {
           
           if (processedLine.trim()) {
             doc.setFontSize(10);
-            doc.setFont(undefined, 'normal');
+            doc.setFont('helvetica', 'normal');
             const textLines = doc.splitTextToSize(processedLine, pageWidth);
             doc.text(textLines, margin, yPos);
             yPos += textLines.length * 12 + 5;
@@ -602,7 +603,7 @@ export default function CitationsPage() {
   }
 
   return (
-    <div className="h-full w-full p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-6 overflow-hidden">
+    <div className="h-full w-full p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-6 min-h-0">
       <div className="card p-4 md:p-6 bg-card border-theme rounded-xl text-foreground">
         <h2 className="text-xl font-semibold mb-4 text-foreground">Add New Citation</h2>
 
@@ -724,7 +725,7 @@ export default function CitationsPage() {
           {loading ? 'Generating…' : mode === 'url' ? 'Generate from URL' : '+ Add Citation'}
         </button>
       </div>
-  <div className="card p-4 md:p-6 bg-card border-theme rounded-xl flex flex-col overflow-y-auto h-full min-h-[300px] text-foreground">
+  <div className="card p-4 md:p-6 bg-card border-theme rounded-xl flex flex-col overflow-hidden h-full min-h-[300px] text-foreground">
         <div className="flex items-center justify-between mb-4 flex-shrink-0">
           <h2 className="text-xl font-semibold text-foreground">Your Citations</h2>
           {items.length > 0 && (
@@ -763,6 +764,17 @@ export default function CitationsPage() {
                   <div className="flex items-start justify-between gap-2 mb-1">
                     <label className="text-xs font-medium text-muted">Full Citation</label>
                     <div className="flex items-center gap-1">
+                      <WorkspaceQuickAddButton
+                        className="p-1.5 rounded hover:bg-black/5 transition-colors text-muted hover:text-foreground"
+                        derive={() => ({
+                          title: `Citation ${i + 1}`,
+                          content: `${c.fullCitation}\n\nIn-Text: ${c.inTextCitation}`,
+                          section: 'references',
+                          tags: ['citation']
+                        })}
+                      >
+                        <BookmarkIcon className="h-4 w-4" />
+                      </WorkspaceQuickAddButton>
                       <button
                         type="button"
                         onClick={() => copyToClipboard(c.fullCitation, 'full', i)}
