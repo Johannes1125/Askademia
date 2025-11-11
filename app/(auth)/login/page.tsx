@@ -144,13 +144,13 @@ export default function UserLoginPage() {
         </div>
       </div>
       {/* Right: Graphic */}
-      <div className="hidden lg:flex items-center justify-center p-8 bg-[var(--brand-white)] dark:bg-[#11161d]">
+      <div className="hidden lg:flex items-center justify-center p-8 bg-white dark:bg-[#11161d]">
         <div className="w-full max-w-md">
           <div className="aspect-square rounded-lg bg-gradient-to-br from-[var(--brand-yellow)]/20 to-[var(--brand-blue)]/20 dark:from-[var(--brand-yellow)]/10 dark:to-[var(--brand-blue)]/10 flex items-center justify-center">
             <div className="text-center space-y-4">
               <div className="h-24 w-24 mx-auto rounded-full bg-[var(--brand-blue)]/20 dark:bg-[var(--brand-blue)]/10 flex items-center justify-center">
                 <div className="h-16 w-16 rounded-lg bg-[var(--brand-yellow)] dark:bg-[var(--brand-yellow)]/80 flex items-center justify-center">
-                  <span className="text-2xl font-bold text-[#1f2937]">A</span>
+                  <span className="text-2xl font-bold text-[#1f2937] dark:text-white">A</span>
                 </div>
               </div>
               <div className="space-y-2">

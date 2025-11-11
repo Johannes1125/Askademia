@@ -1,137 +1,223 @@
 @import "tailwindcss";
 
 :root {
-  /* Brand colors */
-  --brand-yellow: #e4b795;
-  --brand-blue: #2f679f;
-  --brand-white: #ffffff;
-
-  /* Base surfaces */
-  --background: #ffffff; /* force pure white for light mode */
-  --app-bg: #ffffff; /* light mode page background */
-  --foreground: #0f172a; /* slate-900 */
-  --muted: #64748b; /* slate-500 */
+  --app-bg: #f7f9fc;
+  --card: #ffffff;
+  --foreground: #0f1724;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --subtle-bg: #f8fafc;
+  --input-bg: #f9fafb;
+  
+  --brand-yellow: #fbbf24;
+  --brand-blue: #3b82f6;
+  --brand-green: #10b981;
+  --brand-orange: #f97316;
+  --primary: #3b82f6;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
-  --color-brand-yellow: var(--brand-yellow);
-  --color-brand-blue: var(--brand-blue);
-  --color-brand-white: var(--brand-white);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+.dark {
+  --app-bg: #071025;
+  --card: #141b28;
+  --foreground: #e8f0f8;
+  --muted: #9fb3d0;
+  --border: #1e2d42;
+  --subtle-bg: #071827;
+  --input-bg: #071029;
+  
+  --brand-yellow: #fcd34d;
+  --brand-blue: #4a9eff;
+  --brand-green: #34d399;
+  --brand-orange: #fb923c;
+  --primary: #4a9eff;
 }
 
-/* Respect OS preference, and also respond to explicit .dark class on <html> */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0b1220; /* near slate-950 */
-    --foreground: #e5e7eb; /* gray-200 */
-    --muted: #94a3b8; /* slate-400 */
-    --app-bg: #0b1220;
-  }
+* {
+  color-scheme: light dark;
 }
 
-html.dark {
-  --background: #0b1220; /* near slate-950 */
-  --foreground: #e5e7eb; /* gray-200 */
-  --muted: #94a3b8; /* slate-400 */
-  --app-bg: #0b1220;
-}
-
-/* Ensure explicit light choice overrides OS dark preference */
-html:not(.dark) {
-  --background: #ffffff;
-  --foreground: #0f172a; /* slate-900 */
-  --muted: #64748b; /* slate-500 */
-  --app-bg: #ffffff;
-}
-
-html, body {
-  height: 100%;
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--app-bg);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
-    Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  transition: background-color 0.3s, color 0.3s;
 }
 
-/* Reduce motion for users who prefer less animation */
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-/* Utility surfaces */
 .card {
-  @apply rounded-xl border border-black/5 dark:border-white/10 bg-white dark:bg-zinc-900 shadow-sm;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 0.5rem;
 }
 
-/* Theme-aware scrollbar */
+.subtle-bg {
+  background: rgba(100, 116, 139, 0.1);
+}
+
+.dark .subtle-bg {
+  background: rgba(159, 179, 208, 0.1);
+}
+
+.bg-card {
+  background: var(--card);
+}
+
+.bg-app {
+  background: var(--app-bg);
+}
+
+.text-foreground {
+  color: var(--foreground);
+}
+
+.text-muted {
+  color: var(--muted);
+}
+
+.border-theme {
+  border-color: var(--border);
+}
+
+/* Scrollbar styling */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--background);
-  border-radius: 5px;
+  background: var(--app-bg);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: color-mix(in oklab, var(--foreground) 25%, transparent);
-  border-radius: 5px;
-  border: 2px solid var(--background);
+  background: var(--border);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in oklab, var(--foreground) 35%, transparent);
+  background: var(--muted);
 }
 
-::-webkit-scrollbar-corner {
-  background: var(--background);
+/* Custom scrollbar for better dark mode visibility */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* Toast styling for react-toastify */
+.Toastify__toast {
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+}
+
+.Toastify__toast--success {
+  background: var(--card);
+}
+
+.Toastify__progress-bar {
+  background: var(--primary);
+}
+
+/* Input styling */
+input, textarea, select {
+  background: var(--input-bg);
+  color: var(--foreground);
+  border-color: var(--border);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--muted);
+}
+
+/* Scrollbar for messages container */
+.flex-1::-webkit-scrollbar {
+  width: 10px;
+}
+
+.flex-1::-webkit-scrollbar-track {
+  background: var(--card);
+  border-radius: 10px;
+}
+
+.flex-1::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 5px;
+  border: 2px solid var(--card);
+}
+
+.flex-1::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
 }
 
 /* Firefox scrollbar */
 * {
+  scrollbar-color: var(--border) var(--card);
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklab, var(--foreground) 25%, transparent) var(--background);
 }
 
-/* Toastify overrides to match theme */
-.Toastify__toast {
-  background: var(--background) !important;
+.card,
+.bg-card,
+.card.bg-card {
+  background-color: var(--card) !important;
+  border-color: var(--border) !important;
   color: var(--foreground) !important;
-  border: 1px solid color-mix(in oklab, var(--foreground) 15%, transparent) !important;
-  border-radius: 12px !important;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.15) !important;
 }
-.Toastify__close-button > svg {
-  fill: var(--muted) !important;
+
+.bg-subtle-bg,
+.subtle-bg {
+  background-color: var(--subtle-bg) !important;
+  color: var(--foreground) !important;
 }
-.Toastify__toast-body {
-  font-size: 0.95rem;
+
+.bg-input-bg,
+input,
+textarea,
+select {
+  background-color: var(--input-bg) !important;
+  color: var(--foreground) !important;
+  border-color: var(--border) !important;
 }
-.Toastify__toast--success {
-  border-left: 4px solid var(--brand-yellow) !important;
+
+/* text / border tokens */
+.text-foreground { color: var(--foreground) !important; }
+.text-muted { color: var(--muted) !important; }
+.border-theme { border-color: var(--border) !important; }
+
+/* placeholder override */
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted) !important;
+  opacity: 1 !important;
 }
-.Toastify__toast--error {
-  border-left: 4px solid #ef4444 !important;
+
+/* toast + other common components */
+.Toastify__toast {
+  background: var(--card) !important;
+  color: var(--foreground) !important;
+  border: 1px solid var(--border) !important;
 }
-.Toastify__toast--info {
-  border-left: 4px solid var(--brand-blue) !important;
-}
-.Toastify__progress-bar {
-  background: var(--brand-blue) !important;
-}
-.Toastify__toast-icon svg {
-  color: var(--brand-yellow) !important;
+
+/* scrollbar overrides (dark-friendly) */
+::-webkit-scrollbar-track { background: transparent !important; }
+::-webkit-scrollbar-thumb { background: var(--border) !important; }
+
+/* final safety: any element explicitly using .card-like UI */
+[data-theme="app"] .card,
+[data-theme="app"] .bg-card {
+  background: var(--card) !important;
+  color: var(--foreground) !important;
 }

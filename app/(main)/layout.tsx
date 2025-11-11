@@ -91,49 +91,49 @@ export default function MainLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="h-screen bg-white text-slate-900 flex dark:bg-[#0b1220] dark:text-[#e5e7eb] overflow-hidden">
+    <div className="h-screen bg-app text-foreground flex overflow-hidden">
       {/* Mobile backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
       
       {/* Sidebar */}
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-50 w-72 flex flex-col transition-transform duration-300
-        border-r border-black/10 dark:border-white/10
-        bg-white text-slate-900 dark:bg-[#0f1218] dark:text-white
-        ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 lg:w-72 flex flex-col transition-transform duration-300
+        border-r border-theme
+        bg-card text-foreground
+        ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
       >
-        <div className="px-4 py-4 border-b border-white/10">
+        <div className="px-4 py-4 border-b border-theme">
           <div className="flex items-center justify-between">
             <Link href="/dashboard" className="flex items-center gap-3" onClick={() => setSidebarOpen(false)}>
               <div className="h-9 w-9 grid place-items-center rounded-lg" style={{ background: "var(--brand-yellow)" }}>
-                <span className="text-[#1f2937] font-bold">A</span>
+                <span style={{ color: "var(--app-bg)" }} className="font-bold">A</span>
               </div>
               <div>
-                <div className="font-semibold">Askademia</div>
-                <div className="text-xs text-white/60">Research AI</div>
+                <div className="font-semibold text-foreground">Askademia</div>
+                <div className="text-xs text-muted">Research AI</div>
               </div>
             </Link>
             {/* Close button for mobile */}
             <button
               onClick={() => setSidebarOpen(false)}
-              className="md:hidden text-white/80 hover:text-white"
+              className="lg:hidden text-muted hover:text-foreground"
               aria-label="Close sidebar"
             >
               <Cross2Icon className="h-5 w-5" />
             </button>
           </div>
-          <div className="mt-4 flex items-center gap-2 rounded-md px-3 py-2 bg-black/5 text-slate-700 dark:bg-white/5 dark:text-white">
-            <MagnifyingGlassIcon className="h-4 w-4 text-slate-500 dark:text-white/60" />
+          <div className="mt-4 flex items-center gap-2 rounded-lg border border-theme bg-card px-3 py-2 focus-within:border-theme focus-within:ring-1 focus-within:ring-theme transition-colors">
+            <MagnifyingGlassIcon className="h-4 w-4 text-muted flex-shrink-0" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search..."
-              className="bg-transparent outline-none text-sm w-full placeholder:text-slate-400 dark:placeholder:text-white/50"
+              className="bg-transparent outline-none text-sm w-full text-foreground placeholder:text-muted"
             />
           </div>
         </div>
@@ -147,8 +147,8 @@ export default function MainLayout({ children }: { children: ReactNode }) {
                 onClick={() => setSidebarOpen(false)}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
                   active
-                    ? "bg-black/5 text-slate-900 dark:bg-white/10 dark:text-white"
-                    : "text-slate-700 hover:bg-black/5 dark:text-white/80 dark:hover:bg-white/5"
+                    ? "subtle-bg text-foreground"
+                    : "text-muted hover:subtle-bg"
                 }`}
               >
                 <span className="h-4 w-4">{item.icon}</span>
@@ -157,34 +157,34 @@ export default function MainLayout({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
-        <div className="mt-auto border-t border-white/10 p-4">
+        <div className="mt-auto border-t border-theme p-4">
           <div className="grid gap-2">
-            <Link href="/settings" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2 text-sm text-white/80 hover:text-white">
+            <Link href="/settings" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2 text-sm text-foreground hover:text-foreground/80 transition-colors">
               <GearIcon /> Settings
             </Link>
             {mounted && (
               <Dialog.Root open={logoutModalOpen} onOpenChange={setLogoutModalOpen}>
                 <Dialog.Trigger asChild>
                   <button
-                    className="flex items-center gap-2 text-left text-sm text-white/80 hover:text-white"
+                    className="flex items-center gap-2 text-left text-sm"
                   >
                     <ExitIcon /> Logout
                   </button>
                 </Dialog.Trigger>
                 <Dialog.Portal>
                 <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
-                <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md rounded-xl bg-white dark:bg-[#11161d] p-6 shadow-xl z-50 border border-gray-200 dark:border-white/10">
-                  <Dialog.Title className="text-lg font-semibold text-black dark:text-white mb-2">
+                <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md rounded-xl bg-card p-6 shadow-xl z-50 border border-theme">
+                  <Dialog.Title className="text-lg font-semibold text-foreground">
                     Confirm Logout
                   </Dialog.Title>
-                  <Dialog.Description className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                  <Dialog.Description className="text-sm text-muted mb-6">
                     Are you sure you want to log out? You will need to sign in again to access your account.
                   </Dialog.Description>
                   <div className="flex gap-3 justify-end">
                     <Dialog.Close asChild>
                       <button
                         disabled={loggingOut}
-                        className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-[#0f1218] text-black dark:text-white hover:bg-gray-50 dark:hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-4 py-2 text-sm font-medium rounded-lg border border-theme bg-card text-foreground hover:opacity-80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Cancel
                       </button>
@@ -205,7 +205,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
           {!mounted && (
             <button
               onClick={() => setLogoutModalOpen(true)}
-              className="flex items-center gap-2 text-left text-sm text-white/80 hover:text-white"
+              className="flex items-center gap-2 text-left text-sm text-muted hover:text-foreground transition-colors"
             >
               <ExitIcon /> Logout
             </button>
@@ -214,27 +214,27 @@ export default function MainLayout({ children }: { children: ReactNode }) {
         </div>
       </aside>
       <div className="flex-1 flex flex-col">
-        <header className="h-14 border-b border-black/10 dark:border-white/10 bg-white dark:bg-[#0f1218] backdrop-blur flex items-center justify-between px-4">
+        <header className="h-14 border-b border-theme backdrop-blur bg-card text-foreground flex items-center justify-between px-3 sm:px-4">
           <div className="flex items-center gap-3">
             {/* Burger menu button for mobile */}
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="md:hidden text-black dark:text-white hover:bg-black/5 dark:hover:bg-white/10 rounded-md p-2"
+              className="lg:hidden text-foreground hover:opacity-80 rounded-md p-2 transition-colors"
               aria-label="Toggle sidebar"
             >
               <HamburgerMenuIcon className="h-5 w-5" />
             </button>
             <Link href="/dashboard" className="flex items-center gap-3">
               <div className="h-7 w-7 grid place-items-center rounded-md" style={{ background: "var(--brand-yellow)" }}>
-                <span className="text-[#1f2937] text-sm font-bold">A</span>
+                <span style={{ color: "var(--app-bg)" }} className="text-sm font-bold">A</span>
               </div>
-              <span className="font-semibold">Askademia</span>
+              <span className="font-semibold text-foreground">Askademia</span>
             </Link>
           </div>
           <div className="ml-auto flex items-center gap-2">
             <button
               onClick={() => setDark((d) => !d)}
-              className="h-9 w-9 grid place-items-center rounded-md border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10"
+              className="h-9 w-9 grid place-items-center rounded-md border border-theme hover:opacity-80 text-foreground transition-colors"
               aria-label="Toggle theme"
               title="Toggle theme"
             >
@@ -242,7 +242,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
             </button>
             {!user ? (
               <>
-                <Link href="/login" className="text-sm px-3 py-1.5 rounded-md border border-black/10 hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/10">
+                <Link href="/login" className="text-sm px-3 py-1.5 rounded-md border border-theme hover:opacity-80 text-foreground transition-colors">
                   Login
                 </Link>
                 <Link href="/signup" className="text-sm px-3 py-1.5 rounded-md text-white" style={{ background: "var(--brand-blue)" }}>
@@ -250,11 +250,15 @@ export default function MainLayout({ children }: { children: ReactNode }) {
                 </Link>
               </>
             ) : (
-              <div className="text-sm text-black dark:text-white">{user.email}</div>
+              <div className="text-sm text-foreground font-medium">{user.email}</div>
             )}
           </div>
         </header>
-        <main className="flex-1 h-[calc(100vh-3.5rem)] overflow-hidden p-4 md:p-6 bg-white dark:bg-transparent">{children}</main>
+        <main className="flex-1 h-[calc(100vh-3.5rem)] overflow-y-auto p-4 sm:p-6 md:p-8 bg-app">
+          <div className="mx-auto max-w-6xl">
+            {children}
+          </div>
+        </main>
       </div>
     </div>
   );

@@ -26,24 +26,24 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   }, [dark]);
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 dark:bg-[#0b1220] dark:text-white">
+    <div className="min-h-screen bg-white dark:bg-[#0b1220] text-black dark:text-white">
       {/* Header */}
-      <header className="h-16 border-b border-black/10 dark:border-white/10 bg-white dark:bg-[#0f1218] flex items-center justify-between px-6">
+      <header className="h-16 border-b border-black/10 dark:border-white/10 bg-white dark:bg-[#0b1220] flex items-center justify-between px-6">
         <Link href="/dashboard" className="flex items-center gap-3">
           <div className="h-9 w-9 grid place-items-center rounded-lg" style={{ background: "var(--brand-yellow)" }}>
-            <span className="text-[#1f2937] font-bold">A</span>
+            <span className="text-[#1f2937] dark:text-white font-bold">A</span>
           </div>
           <span className="font-semibold text-black dark:text-white">Askademia</span>
         </Link>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setDark((d) => !d)}
-            className="h-9 w-9 grid place-items-center rounded-md border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10"
+            className="h-9 w-9 grid place-items-center rounded-md border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 text-black dark:text-white transition-colors"
           >
             {dark ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
           </button>
           {pathname !== "/login" && (
-            <Link href="/login" className="px-4 py-2 rounded-md border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-sm">
+            <Link href="/login" className="px-4 py-2 rounded-md border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 text-sm text-black dark:text-white transition-colors">
               Login
             </Link>
           )}

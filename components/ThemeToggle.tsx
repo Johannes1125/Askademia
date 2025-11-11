@@ -1,35 +1,58 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 
 export default function ThemeToggle() {
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
-    const el = document.documentElement;
-    setIsDark(el.classList.contains('dark'));
+    try {
+      const el = document.documentElement;
+      const stored = localStorage.getItem("theme");
+      if (stored === "dark") {
+        el.classList.add("dark");
+        setIsDark(true);
+      } else if (stored === "light") {
+        el.classList.remove("dark");
+        setIsDark(false);
+      } else {
+        // follow system preference if no stored value
+        const prefers = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        el.classList.toggle("dark", prefers);
+        setIsDark(prefers);
+      }
+    } catch (_) {}
   }, []);
 
   function toggle() {
-    const el = document.documentElement;
-    const next = !el.classList.contains('dark');
-    el.classList.toggle('dark', next);
     try {
-      localStorage.setItem('theme', next ? 'dark' : 'light');
+      const el = document.documentElement;
+      const next = !el.classList.contains("dark");
+      el.classList.toggle("dark", next);
+      localStorage.setItem("theme", next ? "dark" : "light");
+      setIsDark(next);
     } catch (_) {}
-    setIsDark(next);
   }
 
   return (
     <button
       onClick={toggle}
-      className="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm bg-white text-slate-900 dark:bg-zinc-900 dark:text-slate-100 border-black/10 dark:border-white/10 shadow-sm"
-      aria-label="Toggle theme"
-      title="Toggle theme"
+      aria-pressed={isDark}
+      aria-label="Toggle color theme"
+      title="Toggle color theme"
       type="button"
+      className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm transition focus:outline-none focus:ring-2 focus:ring-offset-2`}
+      style={{
+        background: "var(--card)",
+        color: "var(--foreground)",
+        borderColor: "var(--border)",
+      }}
     >
-      <span>{isDark ? 'Dark' : 'Light'}</span>
-      <span aria-hidden>{isDark ? '🌙' : '☀️'}</span>
+      <span className="sr-only">Toggle color theme</span>
+      <span aria-hidden className="text-sm">
+        {isDark ? "🌙" : "☀️"}
+      </span>
+      <span className="text-sm font-medium">{isDark ? "Dark" : "Light"}</span>
     </button>
   );
 }

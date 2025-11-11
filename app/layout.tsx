@@ -3,7 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import ThemeToggle from "@/components/ThemeToggle";
 import WebVitalsLogger from "@/components/WebVitalsLogger";
 
 const geistSans = Geist({
@@ -47,9 +46,6 @@ export default function RootLayout({
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <WebVitalsLogger />
-        <div className="fixed bottom-4 right-4 z-50">
-          <ThemeToggle />
-        </div>
         {children}
         <ToastContainer
           position="top-right"

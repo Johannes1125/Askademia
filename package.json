@@ -17,6 +17,9 @@
     "@radix-ui/react-toast": "^1.2.15",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.78.0",
+    "docx": "^9.5.1",
+    "file-saver": "^2.0.5",
+    "jspdf": "^3.0.3",
     "next": "16.0.1",
     "nodemailer": "^7.0.10",
     "openai": "^6.8.0",
@@ -28,6 +31,7 @@
     "swr": "^2.2.5"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "16.0.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/nodemailer": "^7.0.3",
@@ -36,7 +40,6 @@
     "eslint": "^9",
     "eslint-config-next": "16.0.1",
     "tailwindcss": "^4",
-    "@next/bundle-analyzer": "16.0.1",
     "typescript": "^5"
   }
 }

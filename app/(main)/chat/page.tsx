@@ -4,8 +4,11 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { toast } from "react-toastify";
-import { PaperPlaneIcon, PlusIcon, TrashIcon, ReloadIcon } from "@radix-ui/react-icons";
+import { PaperPlaneIcon, PlusIcon, TrashIcon, ReloadIcon, DownloadIcon } from "@radix-ui/react-icons";
 import ReactMarkdown from "react-markdown";
+import { jsPDF } from "jspdf";
+import { Document, Packer, Paragraph, TextRun } from "docx";
+import { saveAs } from "file-saver";
 
 type Message = { id: string; role: "user" | "assistant"; content: string };
 type Conversation = { 
@@ -288,6 +291,327 @@ export default function ChatPage() {
     setInput(prompt);
     // Optionally auto-send or just populate the input
     // For now, just populate so user can edit if needed
+  }
+
+  async function logExport(kind: 'citation' | 'chat', itemId: string | undefined, format: string) {
+    try {
+      await fetch('/api/exports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind, itemId, format, timestamp: new Date().toISOString() }),
+      });
+    } catch (err) {
+      // non-blocking
+      console.warn('Export log failed', err);
+    }
+  }
+
+  // Strip markdown for plain text export
+  function stripMarkdown(text: string): string {
+    return text
+      .replace(/#{1,6}\s+/g, '') // Remove headers
+      .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
+      .replace(/\*(.*?)\*/g, '$1') // Remove italic
+      .replace(/`(.*?)`/g, '$1') // Remove inline code
+      .replace(/```[\s\S]*?```/g, '') // Remove code blocks
+      .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // Remove links, keep text
+      .trim();
+  }
+
+  // Parse markdown and return formatted paragraphs for DOCX
+  function parseMarkdownForDocx(text: string): Paragraph[] {
+    const paragraphs: Paragraph[] = [];
+    const lines = text.split('\n');
+    
+    let currentParagraph: TextRun[] = [];
+    
+    for (const line of lines) {
+      // Check for headers
+      const headerMatch = line.match(/^(#{1,6})\s+(.+)$/);
+      if (headerMatch) {
+        // Save previous paragraph if exists
+        if (currentParagraph.length > 0) {
+          paragraphs.push(new Paragraph({
+            children: currentParagraph,
+            spacing: { after: 200 },
+          }));
+          currentParagraph = [];
+        }
+        
+        const level = headerMatch[1].length;
+        const headerText = headerMatch[2].trim();
+        const headerSize = 32 - (level * 4); // H1=28, H2=24, H3=20, etc.
+        
+        paragraphs.push(new Paragraph({
+          children: [new TextRun({ text: headerText, bold: true, size: headerSize })],
+          spacing: { after: 200 },
+        }));
+        continue;
+      }
+      
+      // Empty line = new paragraph
+      if (!line.trim()) {
+        if (currentParagraph.length > 0) {
+          paragraphs.push(new Paragraph({
+            children: currentParagraph,
+            spacing: { after: 200 },
+          }));
+          currentParagraph = [];
+        }
+        continue;
+      }
+      
+      // Parse inline formatting
+      const parts = line.split(/(\*\*.*?\*\*|\*.*?\*|`.*?`)/);
+      for (const part of parts) {
+        if (!part) continue;
+        
+        if (part.startsWith('**') && part.endsWith('**')) {
+          // Bold
+          const text = part.slice(2, -2);
+          currentParagraph.push(new TextRun({ text, bold: true, size: 20 }));
+        } else if (part.startsWith('*') && part.endsWith('*') && !part.startsWith('**')) {
+          // Italic
+          const text = part.slice(1, -1);
+          currentParagraph.push(new TextRun({ text, italics: true, size: 20 }));
+        } else if (part.startsWith('`') && part.endsWith('`')) {
+          // Code
+          const text = part.slice(1, -1);
+          currentParagraph.push(new TextRun({ text, font: 'Courier New', size: 18 }));
+        } else {
+          // Regular text
+          currentParagraph.push(new TextRun({ text: part, size: 20 }));
+        }
+      }
+      
+      // Add line break if not last line
+      currentParagraph.push(new TextRun({ text: ' ', size: 20 }));
+    }
+    
+    // Add remaining paragraph
+    if (currentParagraph.length > 0) {
+      paragraphs.push(new Paragraph({
+        children: currentParagraph,
+        spacing: { after: 200 },
+      }));
+    }
+    
+    return paragraphs;
+  }
+
+  function formatConversationForExport(): string {
+    if (!active) return '';
+    
+    let formatted = `Conversation: ${active.title || 'Untitled Conversation'}\n\n`;
+    active.messages.forEach((message) => {
+      const role = message.role === 'user' ? 'You' : 'Askademia';
+      const content = stripMarkdown(message.content);
+      formatted += `${role}:\n${content}\n\n`;
+    });
+    return formatted;
+  }
+
+  async function exportConversationPdf(useAI: boolean = false) {
+    if (!active || active.messages.length === 0) {
+      toast.error('No conversation to export');
+      return;
+    }
+
+    try {
+      let content = formatConversationForExport();
+      
+      // Use AI to format if requested
+      if (useAI) {
+        toast.info('Formatting with AI...');
+        try {
+          const response = await fetch('/api/export/format', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content, type: 'conversation', format: 'pdf' }),
+          });
+          
+          if (!response.ok) {
+            throw new Error('AI formatting failed');
+          }
+          
+          const data = await response.json();
+          content = data.formattedContent;
+        } catch (err) {
+          console.error('AI formatting error:', err);
+          toast.warning('AI formatting failed, using standard export');
+        }
+      }
+
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      const margin = 40;
+      const pageWidth = doc.internal.pageSize.getWidth() - margin * 2;
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let yPos = 60;
+
+      // Title
+      doc.setFontSize(18);
+      doc.text(active.title || 'Conversation Export', margin, yPos);
+      yPos += 30;
+
+      // Parse markdown if AI-enhanced, otherwise use plain text
+      if (useAI) {
+        // Process line by line to handle headers and formatting
+        const lines = content.split('\n');
+        
+        for (const line of lines) {
+          if (yPos > pageHeight - 100) {
+            doc.addPage();
+            yPos = 60;
+          }
+          
+          // Check for headers
+          const headerMatch = line.match(/^(#{1,6})\s+(.+)$/);
+          if (headerMatch) {
+            const level = headerMatch[1].length;
+            const headerText = headerMatch[2].trim();
+            const fontSize = 18 - (level * 2);
+            
+            doc.setFontSize(fontSize);
+            doc.setFont(undefined, 'bold');
+            const headerLines = doc.splitTextToSize(headerText, pageWidth);
+            doc.text(headerLines, margin, yPos);
+            yPos += headerLines.length * (fontSize + 2) + 10;
+            continue;
+          }
+          
+          // Process regular line with inline formatting
+          // For PDF, we'll strip markdown but keep structure
+          let processedLine = line
+            .replace(/\*\*(.*?)\*\*/g, '$1') // Bold - keep text
+            .replace(/\*(.*?)\*/g, '$1') // Italic - keep text
+            .replace(/`(.*?)`/g, '$1'); // Code - keep text
+          
+          if (processedLine.trim()) {
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'normal');
+            const textLines = doc.splitTextToSize(processedLine, pageWidth);
+            doc.text(textLines, margin, yPos);
+            yPos += textLines.length * 12 + 5;
+          } else {
+            // Empty line
+            yPos += 8;
+          }
+        }
+      } else {
+        // Standard export - plain text
+        doc.setFontSize(10);
+        const lines = doc.splitTextToSize(content, pageWidth);
+        let currentLine = 0;
+        
+        while (currentLine < lines.length) {
+          if (yPos > pageHeight - 100) {
+            doc.addPage();
+            yPos = 60;
+          }
+          
+          const linesToFit = Math.floor((pageHeight - yPos - 100) / 12);
+          const linesForThisPage = lines.slice(currentLine, currentLine + linesToFit);
+          doc.text(linesForThisPage, margin, yPos);
+          yPos += linesForThisPage.length * 12 + 10;
+          currentLine += linesToFit;
+        }
+      }
+
+      const blob = doc.output('blob');
+      const safeName = (active.title || 'conversation').replace(/[^a-z0-9-_ ]/gi, '').slice(0, 100) || 'conversation';
+      const suffix = useAI ? '-ai-enhanced' : '';
+      saveAs(blob, `${safeName}${suffix}.pdf`);
+
+      if (active.id) {
+        await logExport('chat', active.id, useAI ? 'pdf-ai' : 'pdf');
+      }
+      toast.success(`Conversation exported as PDF${useAI ? ' (AI-enhanced)' : ''}`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Export failed');
+    }
+  }
+
+  async function exportConversationDocx(useAI: boolean = false) {
+    if (!active || active.messages.length === 0) {
+      toast.error('No conversation to export');
+      return;
+    }
+
+    try {
+      let content = formatConversationForExport();
+      
+      // Use AI to format if requested
+      if (useAI) {
+        toast.info('Formatting with AI...');
+        try {
+          const response = await fetch('/api/export/format', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content, type: 'conversation', format: 'docx' }),
+          });
+          
+          if (!response.ok) {
+            throw new Error('AI formatting failed');
+          }
+          
+          const data = await response.json();
+          content = data.formattedContent;
+        } catch (err) {
+          console.error('AI formatting error:', err);
+          toast.warning('AI formatting failed, using standard export');
+        }
+      }
+
+      // Parse markdown if AI-enhanced, otherwise use simple formatting
+      let paragraphs: Paragraph[] = [
+        new Paragraph({
+          children: [new TextRun({ text: active.title || 'Conversation Export', bold: true, size: 32 })],
+          spacing: { after: 300 },
+        }),
+      ];
+
+      if (useAI) {
+        // Use markdown parser
+        const parsedParagraphs = parseMarkdownForDocx(content);
+        paragraphs = paragraphs.concat(parsedParagraphs);
+      } else {
+        // Standard export - simple formatting
+        const contentParagraphs = content.split(/\n\n+/).filter(p => p.trim());
+        contentParagraphs.forEach((para) => {
+          const trimmed = para.trim();
+          if (!trimmed) return;
+          
+          paragraphs.push(
+            new Paragraph({
+              children: [new TextRun({ text: trimmed, size: 20 })],
+              spacing: { after: 200 },
+            })
+          );
+        });
+      }
+
+      const doc = new Document({
+        sections: [
+          {
+            children: paragraphs,
+          },
+        ],
+      });
+
+      const blob = await Packer.toBlob(doc);
+      const safeName = (active.title || 'conversation').replace(/[^a-z0-9-_ ]/gi, '').slice(0, 100) || 'conversation';
+      const suffix = useAI ? '-ai-enhanced' : '';
+      saveAs(blob, `${safeName}${suffix}.docx`);
+
+      if (active.id) {
+        await logExport('chat', active.id, useAI ? 'docx-ai' : 'docx');
+      }
+      toast.success(`Conversation exported as DOCX${useAI ? ' (AI-enhanced)' : ''}`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Export failed');
+    }
   }
 
   async function sendMessage() {
@@ -649,13 +973,13 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4 h-full max-h-full min-h-0">
-      {/* Left: conversation list - Chat History Sidebar */}
-      <div className="card bg-[#11161d] border-white/10 text-white flex flex-col overflow-hidden h-full">
-        <div className="p-4 border-b border-white/10 flex items-center gap-2">
+    <div className="flex gap-4 h-[calc(100vh-4rem)] overflow-hidden border border-theme rounded-xl bg-app shadow-xl backdrop-blur-sm">
+      {/* Sidebar */}
+      <aside className="w-64 bg-card/50 backdrop-blur-sm border-r border-theme flex flex-col overflow-hidden rounded-l-xl">
+        <div className="p-4 border-b border-theme flex items-center gap-2 bg-card/80 backdrop-blur-sm">
           <button
             onClick={createConversation}
-            className="flex-1 flex items-center gap-2 justify-center rounded-lg px-3 py-2 text-sm font-medium"
+            className="flex-1 flex items-center gap-2 justify-center rounded-lg px-3 py-2.5 text-sm font-semibold transition-all hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-lg"
             style={{ background: "var(--brand-yellow)", color: "#1f2937" }}
           >
             <PlusIcon /> New Chat
@@ -663,7 +987,7 @@ export default function ChatPage() {
           <button
             onClick={loadConversations}
             disabled={loadingConversations}
-            className="p-2 rounded-lg hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="p-2.5 rounded-lg hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-foreground transition-all hover:scale-110 active:scale-95"
             title="Refresh conversations"
           >
             <ReloadIcon className={`h-4 w-4 ${loadingConversations ? 'animate-spin' : ''}`} />
@@ -671,9 +995,9 @@ export default function ChatPage() {
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {loadingConversations ? (
-            <div className="text-center text-white/60 text-sm py-4">Loading conversations...</div>
+            <div className="text-center text-muted text-sm py-4">Loading conversations...</div>
           ) : conversations.length === 0 ? (
-            <div className="text-center text-white/60 text-sm py-4">
+            <div className="text-center text-muted text-sm py-4">
               <p>No conversations yet</p>
               <p className="text-xs mt-1">Start a new chat to begin</p>
             </div>
@@ -684,17 +1008,19 @@ export default function ChatPage() {
               return (
                 <div
                   key={c.id}
-                  className={`group relative flex items-center rounded-lg ${
-                    isActive ? "bg-[var(--brand-yellow)]/20" : "hover:bg-white/5"
+                  className={`group relative flex items-center rounded-lg transition-all ${
+                    isActive 
+                      ? "bg-[var(--brand-yellow)]/20 border border-[var(--brand-yellow)]/30 shadow-sm" 
+                      : "hover:bg-white/5 border border-transparent hover:border-theme/50"
                   }`}
                 >
                   <button
                     onClick={() => setActiveId(c.id)}
-                    className="flex-1 text-left rounded-lg px-3 py-2 text-sm pr-8 truncate"
+                    className="flex-1 text-left rounded-lg px-3 py-2.5 text-sm pr-8 truncate text-foreground transition-colors"
                   >
                     <div className="truncate">{c.title || "New Conversation"}</div>
                     {c.messages && c.messages.length > 0 && (
-                      <div className="text-xs text-white/50 mt-0.5">
+                      <div className="text-xs text-muted mt-0.5">
                         {c.messages.length} message{c.messages.length !== 1 ? 's' : ''}
                       </div>
                     )}
@@ -702,7 +1028,7 @@ export default function ChatPage() {
                   {isDatabaseConv && (
                     <button
                       onClick={(e) => openDeleteModal(c.id, e)}
-                      className="absolute right-2 p-1.5 rounded hover:bg-red-500/20 text-white/60 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute right-2 p-1.5 rounded hover:bg-red-500/20 text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
                       title="Delete conversation"
                     >
                       <TrashIcon className="h-3.5 w-3.5" />
@@ -713,35 +1039,83 @@ export default function ChatPage() {
             })
           )}
         </div>
-      </div>
+      </aside>
 
-      {/* Right: conversation panel */}
-      <div className="card bg-[#11161d] border-white/10 text-white flex flex-col overflow-hidden h-full max-h-full">
-        <div className="h-12 flex-shrink-0 flex items-center px-4 border-b border-white/10 text-white/90">
-          {loadingConversations ? "Loading..." : (active ? (active.messages.length === 0 ? "New Conversation" : active.title) : "No conversation selected")}
+      {/* Messages Container */}
+      <div className="flex-1 flex flex-col overflow-hidden min-h-0 bg-app/50 backdrop-blur-sm rounded-r-xl">
+        {/* Header */}
+        <div className="h-14 flex-shrink-0 border-b border-theme px-6 flex items-center justify-between text-foreground bg-card/50 backdrop-blur-sm">
+          <span>
+            {loadingConversations ? "Loading..." : (active ? (active.messages.length === 0 ? "New Conversation" : active.title) : "No conversation selected")}
+          </span>
+          {active && active.messages.length > 0 && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => exportConversationPdf(false)}
+                className="px-3 py-1.5 text-sm rounded-lg border border-theme hover:bg-subtle-bg text-foreground flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 shadow-sm hover:shadow-md"
+                title="Export as PDF"
+              >
+                <DownloadIcon className="h-4 w-4" />
+                PDF
+              </button>
+              <button
+                onClick={() => exportConversationDocx(false)}
+                className="px-3 py-1.5 text-sm rounded-lg border border-theme hover:bg-subtle-bg text-foreground flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 shadow-sm hover:shadow-md"
+                title="Export as DOCX"
+              >
+                <DownloadIcon className="h-4 w-4" />
+                DOCX
+              </button>
+              <button
+                onClick={() => exportConversationPdf(true)}
+                className="px-3 py-1.5 text-sm rounded-lg border border-theme hover:bg-subtle-bg text-foreground flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 bg-[var(--brand-blue)]/10 hover:bg-[var(--brand-blue)]/20 shadow-sm hover:shadow-md"
+                title="Export as PDF (AI-enhanced)"
+              >
+                <DownloadIcon className="h-4 w-4" />
+                PDF AI
+              </button>
+              <button
+                onClick={() => exportConversationDocx(true)}
+                className="px-3 py-1.5 text-sm rounded-lg border border-theme hover:bg-subtle-bg text-foreground flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 bg-[var(--brand-blue)]/10 hover:bg-[var(--brand-blue)]/20 shadow-sm hover:shadow-md"
+                title="Export as DOCX (AI-enhanced)"
+              >
+                <DownloadIcon className="h-4 w-4" />
+                DOCX AI
+              </button>
+            </div>
+          )}
         </div>
+
+        {/* Messages Area - WITH SCROLLBAR */}
         <div 
           ref={messagesContainerRef}
-          className="flex-1 overflow-y-auto p-6 space-y-4 scroll-smooth min-h-0 max-h-full"
+          className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 min-h-0"
         >
           {loadingConversations ? (
-            <div className="h-full grid place-items-center text-center text-white/80">
-              <div>Loading conversations...</div>
+            <div className="h-full grid place-items-center text-center text-foreground">
+              <div className="flex flex-col items-center gap-3">
+                <div className="h-8 w-8 border-2 border-theme border-t-[var(--brand-blue)] rounded-full animate-spin"></div>
+                <div className="text-sm text-muted">Loading conversations...</div>
+              </div>
             </div>
           ) : !active ? (
-            <div className="h-full grid place-items-center text-center text-white/80">
-              <div>
-                <div className="text-2xl font-semibold mb-2">No Conversation Selected</div>
-                <div className="text-sm text-white/60">
+            <div className="h-full grid place-items-center text-center text-foreground">
+              <div className="max-w-md px-6">
+                <div className="text-3xl font-bold mb-3 bg-gradient-to-r from-[var(--brand-blue)] to-[var(--brand-yellow)] bg-clip-text text-transparent">
+                  No Conversation Selected
+                </div>
+                <div className="text-sm text-muted">
                   Click "New Chat" to start a conversation
                 </div>
               </div>
             </div>
           ) : active.messages.length === 0 ? (
-            <div className="h-full grid place-items-center text-center text-white/80">
-              <div>
-                <div className="text-2xl font-semibold mb-2">Start a Research Conversation</div>
-                <div className="text-sm text-white/60">
+            <div className="h-full grid place-items-center text-center text-foreground">
+              <div className="max-w-md px-6">
+                <div className="text-3xl font-bold mb-3 bg-gradient-to-r from-[var(--brand-blue)] to-[var(--brand-yellow)] bg-clip-text text-transparent">
+                  Start a Research Conversation
+                </div>
+                <div className="text-sm text-muted">
                   Ask me anything about research, citations, academic writing, or finding sources
                 </div>
               </div>
@@ -749,43 +1123,45 @@ export default function ChatPage() {
           ) : (
             <>
               {active.messages.map((m) => (
-                <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"} mb-5`}>
                   <div
-                    className={`max-w-[85%] md:max-w-[70%] rounded-xl px-3 py-2 text-sm ${
+                    className={`max-w-[85%] md:max-w-[70%] rounded-2xl px-5 py-4 text-sm border-2 transition-all hover:shadow-lg ${
                       m.role === "user"
-                        ? "bg-[var(--brand-blue)] text-white whitespace-pre-wrap"
-                        : "bg-white/5"
+                        ? "bg-gradient-to-br from-[var(--brand-blue)] to-[var(--brand-blue)]/90 text-white whitespace-pre-wrap border-white/40 shadow-lg shadow-blue-500/30"
+                        : "bg-card text-foreground border-2 shadow-lg backdrop-blur-sm"
                     }`}
+                    style={m.role === "assistant" ? { borderColor: "var(--border)" } : undefined}
                   >
                     {m.content ? (
                       m.role === "assistant" ? (
                         <div className="prose prose-invert prose-sm max-w-none">
                           <ReactMarkdown
                             components={{
-                              h1: ({node, ...props}: any) => <h1 className="text-lg font-semibold mt-2 mb-1 text-white" {...props} />,
-                              h2: ({node, ...props}: any) => <h2 className="text-base font-semibold mt-2 mb-1 text-white" {...props} />,
-                              h3: ({node, ...props}: any) => <h3 className="text-sm font-semibold mt-2 mb-1 text-white" {...props} />,
-                              p: ({node, ...props}: any) => <p className="mb-2 leading-relaxed text-white/90" {...props} />,
-                              strong: ({node, ...props}: any) => <strong className="font-semibold text-white" {...props} />,
-                              em: ({node, ...props}: any) => <em className="italic text-white/90" {...props} />,
-                              ul: ({node, ...props}: any) => <ul className="list-disc list-inside mb-2 space-y-1 text-white/90" {...props} />,
-                              ol: ({node, ...props}: any) => <ol className="list-decimal list-inside mb-2 space-y-1 text-white/90" {...props} />,
-                              li: ({node, ...props}: any) => <li className="ml-2" {...props} />,
-                              code: ({node, ...props}: any) => <code className="bg-white/10 px-1 py-0.5 rounded text-xs text-white" {...props} />,
-                              pre: ({node, ...props}: any) => <pre className="bg-white/10 p-2 rounded mb-2 overflow-x-auto text-white/90" {...props} />,
+                              h1: ({node, ...props}: any) => <h1 className="text-lg font-semibold mt-2 mb-1 text-foreground" {...props} />,
+                              h2: ({node, ...props}: any) => <h2 className="text-base font-semibold mt-2 mb-1 text-foreground" {...props} />,
+                              h3: ({node, ...props}: any) => <h3 className="text-sm font-semibold mt-2 mb-1 text-foreground" {...props} />,
+                              p: ({node, ...props}: any) => <p className="mb-2 last:mb-0 leading-relaxed text-foreground" {...props} />,
+                              strong: ({node, ...props}: any) => <strong className="font-semibold text-foreground" {...props} />,
+                              em: ({node, ...props}: any) => <em className="italic text-foreground" {...props} />,
+                              ul: ({node, ...props}: any) => <ul className="list-disc list-inside mb-2 space-y-1.5 text-foreground ml-2" {...props} />,
+                              ol: ({node, ...props}: any) => <ol className="list-decimal list-inside mb-2 space-y-1.5 text-foreground ml-2" {...props} />,
+                              li: ({node, ...props}: any) => <li className="ml-1" {...props} />,
+                              code: ({node, ...props}: any) => <code className="bg-white/10 dark:bg-black/20 px-1.5 py-0.5 rounded text-xs font-mono text-foreground" {...props} />,
+                              pre: ({node, ...props}: any) => <pre className="bg-white/10 dark:bg-black/20 p-3 rounded-lg mb-2 overflow-x-auto text-foreground text-xs font-mono border border-theme" {...props} />,
+                              blockquote: ({node, ...props}: any) => <blockquote className="border-l-4 border-theme pl-4 italic my-2 text-muted" {...props} />,
                             }}
                           >
                             {m.content}
                           </ReactMarkdown>
                         </div>
                       ) : (
-                        m.content
+                        <div className="text-foreground leading-relaxed whitespace-pre-wrap">{m.content}</div>
                       )
                     ) : (
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 w-2 bg-white/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <div className="h-2 w-2 bg-white/40 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <div className="h-2 w-2 bg-white/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      <div className="flex items-center gap-1.5 py-1">
+                        <div className="h-2 w-2 bg-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <div className="h-2 w-2 bg-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <div className="h-2 w-2 bg-foreground/40 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                       </div>
                     )}
                   </div>
@@ -795,12 +1171,12 @@ export default function ChatPage() {
               
               {/* Rating Prompt */}
               {showRatingPrompt && active && (
-                <div className="mt-4 p-4 rounded-lg bg-white/5 border border-white/10">
+                <div className="mt-4 p-4 rounded-lg bg-card border border-theme">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-white">Rate this conversation</h3>
+                    <h3 className="text-sm font-semibold text-foreground">Rate this conversation</h3>
                     <button
                       onClick={() => setShowRatingPrompt(false)}
-                      className="text-white/60 hover:text-white text-sm"
+                      className="text-muted hover:text-foreground text-sm"
                     >
                       ×
                     </button>
@@ -814,7 +1190,7 @@ export default function ChatPage() {
                           className={`text-2xl transition-colors ${
                             selectedRating && star <= selectedRating
                               ? 'text-yellow-400'
-                              : 'text-white/30 hover:text-white/50'
+                              : 'text-muted hover:text-foreground'
                           }`}
                           disabled={submittingRating}
                         >
@@ -827,7 +1203,7 @@ export default function ChatPage() {
                     value={feedbackText}
                     onChange={(e) => setFeedbackText(e.target.value)}
                     placeholder="Optional: Share your feedback..."
-                    className="w-full rounded-lg bg-[#0f1218] border border-white/10 px-3 py-2 text-sm outline-none focus:border-white/20 mb-3 resize-none"
+                    className="w-full rounded-lg bg-input-bg border border-theme px-3 py-2 text-sm text-foreground placeholder-muted outline-none focus:border-primary mb-3 resize-none"
                     rows={3}
                     disabled={submittingRating}
                     maxLength={1000}
@@ -845,22 +1221,24 @@ export default function ChatPage() {
             </>
           )}
         </div>
-        <div className="border-t border-white/10 p-3 flex-shrink-0">
+
+        {/* Input Area */}
+        <div className="flex-shrink-0 border-t border-theme p-4 bg-card/50 backdrop-blur-sm">
           {/* Prompt Templates - Show when conversation is empty or input is empty */}
           {active && active.messages.length === 0 && !input.trim() && (
-            <div className="mb-3 flex flex-wrap gap-2">
+            <div className="mb-4 flex flex-wrap gap-2">
               {promptTemplates.map((prompt, idx) => (
                 <button
                   key={idx}
                   onClick={() => handlePromptClick(prompt)}
-                  className="px-3 py-1.5 text-xs rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-white/80 hover:text-white transition-colors"
+                  className="px-4 py-2 rounded-xl bg-card border border-theme text-foreground hover:bg-white/10 hover:border-theme/80 transition-all hover:scale-105 active:scale-95 shadow-sm hover:shadow-md text-sm font-medium"
                 >
                   {prompt}
                 </button>
               ))}
             </div>
           )}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -871,23 +1249,23 @@ export default function ChatPage() {
                 }
               }}
               placeholder="Ask about research, citations, grammar, or sources..."
-              className="flex-1 rounded-lg bg-[#0f1218] border border-white/10 px-3 h-11 text-sm outline-none focus:border-white/20"
+              className="flex-1 px-5 py-3.5 rounded-xl bg-input-bg border-2 border-theme text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-[var(--brand-blue)]/50 focus:border-[var(--brand-blue)] transition-all shadow-sm"
               disabled={loading || !active}
             />
             <button
               onClick={sendMessage}
-              className="h-11 w-11 grid place-items-center rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-12 w-12 grid place-items-center rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-110 active:scale-95 shadow-lg hover:shadow-xl"
               style={{ background: "var(--brand-yellow)", color: "#1f2937" }}
               disabled={!input.trim() || loading || !active}
             >
               {loading ? (
                 <div className="h-4 w-4 border-2 border-[#1f2937] border-t-transparent rounded-full animate-spin" />
               ) : (
-                <PaperPlaneIcon />
+                <PaperPlaneIcon className="h-5 w-5" />
               )}
             </button>
           </div>
-          <div className="mt-2 text-xs text-white/50">Askademia can make mistakes. Verify important info.</div>
+          <div className="mt-3 text-xs text-muted text-center">Askademia can make mistakes. Verify important info.</div>
         </div>
       </div>
 
@@ -896,18 +1274,18 @@ export default function ChatPage() {
         <Dialog.Root open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
           <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md rounded-xl bg-white dark:bg-[#11161d] p-6 shadow-xl z-50 border border-gray-200 dark:border-white/10">
-            <Dialog.Title className="text-lg font-semibold text-black dark:text-white mb-2">
+          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md rounded-xl bg-white p-6 shadow-xl z-50 border border-gray-200">
+            <Dialog.Title className="text-lg font-semibold text-black mb-2">
               Delete Conversation
             </Dialog.Title>
-            <Dialog.Description className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+            <Dialog.Description className="text-sm text-black mb-6">
               Are you sure you want to delete this conversation? This action cannot be undone and all messages will be permanently deleted.
             </Dialog.Description>
             <div className="flex gap-3 justify-end">
               <Dialog.Close asChild>
                 <button
                   disabled={deleting}
-                  className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-[#0f1218] text-black dark:text-white hover:bg-gray-50 dark:hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white text-black hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
@@ -915,7 +1293,7 @@ export default function ChatPage() {
               <button
                 onClick={confirmDeleteConversation}
                 disabled={deleting}
-                className="px-4 py-2 text-sm font-medium rounded-lg text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed bg-red-600 hover:bg-red-700"
+                className="px-4 py-2 text-sm font-medium rounded-lg text-black transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed bg-red-600 hover:bg-red-700"
               >
                 {deleting ? "Deleting..." : "Delete"}
               </button>
