@@ -17,6 +17,7 @@
     "@radix-ui/react-toast": "^1.2.15",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.78.0",
+    "cheerio": "^1.1.2",
     "docx": "^9.5.1",
     "file-saver": "^2.0.5",
     "jspdf": "^3.0.3",

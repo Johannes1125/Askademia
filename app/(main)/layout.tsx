@@ -75,18 +75,28 @@ export default function MainLayout({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    const stored = typeof window !== "undefined" ? localStorage.getItem("ask_theme") : null;
-    if (stored === "dark") setDark(true);
+    if (typeof window === "undefined") return;
+    const stored =
+      localStorage.getItem("ask_theme") ??
+      localStorage.getItem("theme");
+    if (stored === "dark") {
+      setDark(true);
+      return;
+    }
+    if (stored === "light") {
+      setDark(false);
+      return;
+    }
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    setDark(prefersDark);
   }, []);
 
   useEffect(() => {
-    if (dark) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("ask_theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("ask_theme", "light");
-    }
+    if (typeof window === "undefined") return;
+    document.documentElement.classList.toggle("dark", dark);
+    const next = dark ? "dark" : "light";
+    localStorage.setItem("ask_theme", next);
+    localStorage.setItem("theme", next);
   }, [dark]);
 
   // If admin page, just render children without main layout

@@ -210,18 +210,18 @@ export default function UserSignupPage() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] grid grid-cols-1 lg:grid-cols-2">
+    <div className="min-h-[calc(100vh-4rem)] grid grid-cols-1 lg:grid-cols-2 bg-app text-foreground">
       {/* Left: Form */}
-      <div className="flex items-center justify-center p-8 bg-white dark:bg-[#0b1220]">
+      <div className="flex items-center justify-center p-8 bg-app">
         <div className="w-full max-w-md space-y-8">
           <div>
-            <h1 className="text-3xl font-bold text-black dark:text-white mb-2">Create your account</h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Enter your information below to create your account</p>
+            <h1 className="text-3xl font-bold text-foreground mb-2">Create your account</h1>
+            <p className="text-sm text-muted">Enter your information below to create your account</p>
           </div>
           {!otpSent ? (
             <form onSubmit={handleSendOTP} className="space-y-5">
               <div>
-                <label className="text-sm font-medium text-black dark:text-white mb-2 block">Username</label>
+                <label className="text-sm font-medium text-foreground mb-2 block">Username</label>
                 <input
                   type="text"
                   value={username}
@@ -238,39 +238,35 @@ export default function UserSignupPage() {
                   required
                   disabled={sendingOtp}
                   className={`w-full rounded-lg border ${
-                    usernameError
-                      ? "border-red-500 dark:border-red-500"
-                      : "border-gray-300 dark:border-white/10"
-                  } bg-white dark:bg-[#11161d] px-4 py-3 text-sm text-black dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 ${
-                    usernameError
-                      ? "focus:ring-red-500"
-                      : "focus:ring-[var(--brand-blue)]"
+                    usernameError ? "border-red-500" : "border-theme"
+                  } bg-input-bg px-4 py-3 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 ${
+                    usernameError ? "focus:ring-red-500" : "focus:ring-[var(--brand-blue)]"
                   } disabled:opacity-50`}
                   placeholder="Enter your username"
                 />
                 {usernameError && (
-                  <p className="mt-1 text-xs text-red-500 dark:text-red-400">{usernameError}</p>
+                  <p className="mt-1 text-xs text-red-500">{usernameError}</p>
                 )}
                 {!usernameError && username && (
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  <p className="mt-1 text-xs text-muted">
                     Username can contain letters, numbers, underscores, and hyphens
                   </p>
                 )}
               </div>
               <div>
-                <label className="text-sm font-medium text-black dark:text-white mb-2 block">Email</label>
+                <label className="text-sm font-medium text-foreground mb-2 block">Email</label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   disabled={sendingOtp}
-                  className="w-full rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-[#11161d] px-4 py-3 text-sm text-black dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[var(--brand-blue)] disabled:opacity-50"
+                  className="w-full rounded-lg border border-theme bg-input-bg px-4 py-3 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-[var(--brand-blue)] disabled:opacity-50"
                   placeholder="m@example.com"
                 />
               </div>
               <div>
-                <label className="text-sm font-medium text-black dark:text-white mb-2 block">Password</label>
+                <label className="text-sm font-medium text-foreground mb-2 block">Password</label>
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
@@ -290,40 +286,36 @@ export default function UserSignupPage() {
                     maxLength={128}
                     disabled={sendingOtp}
                     className={`w-full rounded-lg border ${
-                      passwordError
-                        ? "border-red-500 dark:border-red-500"
-                        : "border-gray-300 dark:border-white/10"
-                    } bg-white dark:bg-[#11161d] px-4 py-3 pr-10 text-sm text-black dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 ${
-                      passwordError
-                        ? "focus:ring-red-500"
-                        : "focus:ring-[var(--brand-blue)]"
+                      passwordError ? "border-red-500" : "border-theme"
+                    } bg-input-bg px-4 py-3 pr-10 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 ${
+                      passwordError ? "focus:ring-red-500" : "focus:ring-[var(--brand-blue)]"
                     } disabled:opacity-50`}
                     placeholder="Enter your password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-white hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground focus:outline-none transition-colors"
                     tabIndex={-1}
                   >
                     {showPassword ? (
-                      <EyeOpenIcon className="h-5 w-5 text-gray-500 dark:text-white" />
+                      <EyeOpenIcon className="h-5 w-5" />
                     ) : (
-                      <EyeClosedIcon className="h-5 w-5 text-gray-500 dark:text-white" />
+                      <EyeClosedIcon className="h-5 w-5" />
                     )}
                   </button>
                 </div>
                 {passwordError && (
-                  <p className="mt-1 text-xs text-red-500 dark:text-red-400">{passwordError}</p>
+                  <p className="mt-1 text-xs text-red-500">{passwordError}</p>
                 )}
                 {!passwordError && password && (
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  <p className="mt-1 text-xs text-muted">
                     Password must be at least 8 characters with uppercase, lowercase, number, and symbol
                   </p>
                 )}
               </div>
               <div>
-                <label className="text-sm font-medium text-black dark:text-white mb-2 block">Confirm Password</label>
+                <label className="text-sm font-medium text-foreground mb-2 block">Confirm Password</label>
                 <div className="relative">
                   <input
                     type={showConfirmPassword ? "text" : "password"}
@@ -341,31 +333,27 @@ export default function UserSignupPage() {
                     required
                     disabled={sendingOtp}
                     className={`w-full rounded-lg border ${
-                      confirmPasswordError
-                        ? "border-red-500 dark:border-red-500"
-                        : "border-gray-300 dark:border-white/10"
-                    } bg-white dark:bg-[#11161d] px-4 py-3 pr-10 text-sm text-black dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 ${
-                      confirmPasswordError
-                        ? "focus:ring-red-500"
-                        : "focus:ring-[var(--brand-blue)]"
+                      confirmPasswordError ? "border-red-500" : "border-theme"
+                    } bg-input-bg px-4 py-3 pr-10 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 ${
+                      confirmPasswordError ? "focus:ring-red-500" : "focus:ring-[var(--brand-blue)]"
                     } disabled:opacity-50`}
                     placeholder="Confirm your password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-white hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground focus:outline-none transition-colors"
                     tabIndex={-1}
                   >
                     {showConfirmPassword ? (
-                      <EyeOpenIcon className="h-5 w-5 text-gray-500 dark:text-white" />
+                      <EyeOpenIcon className="h-5 w-5" />
                     ) : (
-                      <EyeClosedIcon className="h-5 w-5 text-gray-500 dark:text-white" />
+                      <EyeClosedIcon className="h-5 w-5" />
                     )}
                   </button>
                 </div>
                 {confirmPasswordError && (
-                  <p className="mt-1 text-xs text-red-500 dark:text-red-400">{confirmPasswordError}</p>
+                  <p className="mt-1 text-xs text-red-500">{confirmPasswordError}</p>
                 )}
               </div>
               <button
@@ -379,13 +367,13 @@ export default function UserSignupPage() {
             </form>
           ) : (
             <form onSubmit={handleVerifyOTP} className="space-y-5">
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                <p className="text-sm text-blue-800 dark:text-blue-200">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
                   We've sent a 6-digit verification code to <strong>{email}</strong>. Please enter it below.
                 </p>
               </div>
               <div>
-                <label className="text-sm font-medium text-black dark:text-white mb-2 block">Verification Code</label>
+                <label className="text-sm font-medium text-foreground mb-2 block">Verification Code</label>
                 <input
                   type="text"
                   value={otp}
@@ -396,7 +384,7 @@ export default function UserSignupPage() {
                   required
                   disabled={loading}
                   maxLength={6}
-                  className="w-full rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-[#11161d] px-4 py-3 text-sm text-black dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[var(--brand-blue)] disabled:opacity-50 text-center text-2xl tracking-widest font-mono"
+                  className="w-full rounded-lg border border-theme bg-input-bg px-4 py-3 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-[var(--brand-blue)] disabled:opacity-50 text-center text-2xl tracking-widest font-mono"
                   placeholder="000000"
                   autoFocus
                 />
@@ -416,7 +404,7 @@ export default function UserSignupPage() {
                   setOtp("");
                 }}
                 disabled={loading}
-                className="w-full text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors disabled:opacity-50"
+                className="w-full text-sm text-muted hover:text-foreground transition-colors disabled:opacity-50"
               >
                 Change email or resend OTP
               </button>
@@ -424,17 +412,17 @@ export default function UserSignupPage() {
           )}
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300 dark:border-white/10"></div>
+              <div className="w-full border-t border-theme"></div>
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white dark:bg-[#0b1220] px-2 text-gray-500 dark:text-gray-400">Or continue with</span>
+              <span className="bg-app px-2 text-muted">Or continue with</span>
             </div>
           </div>
           <button
             type="button"
             onClick={handleGoogleSignup}
             disabled={loading || sendingOtp}
-            className="w-full rounded-lg border border-gray-300 dark:border-white/10 bg-white dark:bg-[#11161d] px-4 py-3 text-sm font-medium text-black dark:text-white hover:bg-gray-50 dark:hover:bg-white/5 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full rounded-lg border border-theme bg-card px-4 py-3 text-sm font-medium text-foreground hover:bg-subtle-bg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -444,7 +432,7 @@ export default function UserSignupPage() {
             </svg>
             Sign up with Google
           </button>
-          <div className="text-sm text-center text-gray-600 dark:text-gray-400">
+          <div class="text-sm text-center text-muted">
             Already have an account?{" "}
             <Link href="/login" className="text-[var(--brand-blue)] hover:underline font-medium">
               Login
@@ -453,13 +441,13 @@ export default function UserSignupPage() {
         </div>
       </div>
       {/* Right: Graphic */}
-      <div className="hidden lg:flex items-center justify-center p-8 bg-[var(--brand-white)] dark:bg-[#11161d]">
+      <div className="hidden lg:flex items-center justify-center p-8 bg-card">
         <div className="w-full max-w-md">
           <div className="aspect-square rounded-lg bg-gradient-to-br from-[var(--brand-yellow)]/20 to-[var(--brand-blue)]/20 dark:from-[var(--brand-yellow)]/10 dark:to-[var(--brand-blue)]/10 flex items-center justify-center">
             <div className="text-center space-y-4">
               <div className="h-24 w-24 mx-auto rounded-full bg-[var(--brand-blue)]/20 dark:bg-[var(--brand-blue)]/10 flex items-center justify-center">
                 <div className="h-16 w-16 rounded-lg bg-[var(--brand-yellow)] dark:bg-[var(--brand-yellow)]/80 flex items-center justify-center">
-                  <span className="text-2xl font-bold text-[#1f2937]">A</span>
+                  <span className="text-2xl font-bold text-[#1f2937] dark:text-white">A</span>
                 </div>
               </div>
               <div className="space-y-2">
