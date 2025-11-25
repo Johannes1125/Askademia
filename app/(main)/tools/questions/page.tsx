@@ -115,13 +115,6 @@ export default function QuestionsGeneratorPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground mb-2">Survey & Interview Questions Generator</h1>
-        <p className="text-sm text-muted">
-          Generate research-aligned survey or interview questions based on your research objectives
-        </p>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Input Section */}
         <div className="card p-6 bg-card border-theme text-foreground">

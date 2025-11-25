@@ -102,7 +102,7 @@ function addAuthorFromJsonLd(authorData: any, metadata: ExtractedMetadata) {
   }
   if (typeof authorData === 'object') {
     if (Array.isArray(authorData.name)) {
-      authorData.name.forEach((name) => {
+      authorData.name.forEach((name: unknown) => {
         if (typeof name === 'string') {
           addAuthor(metadata, name);
         }

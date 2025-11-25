@@ -98,24 +98,10 @@ export async function POST(request: NextRequest) {
 
     const supabase = createAdminClient();
 
-    // Check if user already exists (only if admin methods are available)
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (serviceRoleKey && typeof supabase.auth.admin?.getUserByEmail === 'function') {
-      try {
-        const { data: existingUser } = await supabase.auth.admin.getUserByEmail(email);
-        if (existingUser?.user) {
-          return NextResponse.json(
-            { error: 'An account with this email already exists' },
-            { status: 400 }
-          );
-        }
-      } catch (error) {
-        // If check fails, continue - the actual signup will fail if user exists
-        console.warn('Could not check existing user:', error);
-      }
-    }
-    // If service role key is not set or admin methods unavailable, skip the check
-    // The actual signup will fail if user exists anyway
+    // Note: We skip checking if user exists here because:
+    // 1. Supabase admin API doesn't have a direct getUserByEmail method
+    // 2. The actual signup/verification will fail if user already exists
+    // This provides better UX by catching duplicates at the verification step
 
     // Generate 6-digit OTP
     const otp = crypto.randomInt(100000, 999999).toString();

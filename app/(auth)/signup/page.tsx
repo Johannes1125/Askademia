@@ -432,7 +432,7 @@ export default function UserSignupPage() {
             </svg>
             Sign up with Google
           </button>
-          <div class="text-sm text-center text-muted">
+          <div className="text-sm text-center text-muted">
             Already have an account?{" "}
             <Link href="/login" className="text-[var(--brand-blue)] hover:underline font-medium">
               Login

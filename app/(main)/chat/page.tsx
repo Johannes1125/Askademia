@@ -13,6 +13,54 @@ import { WorkspaceQuickAddButton } from "@/components/workspace/QuickAdd";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Speech Recognition types
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start(): void;
+  stop(): void;
+  onstart: ((this: SpeechRecognition, ev: Event) => any) | null;
+  onresult: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any) | null;
+  onerror: ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => any) | null;
+  onend: ((this: SpeechRecognition, ev: Event) => any) | null;
+}
+
+interface SpeechRecognitionEvent extends Event {
+  resultIndex: number;
+  results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+}
+
+interface SpeechRecognitionResultList {
+  length: number;
+  item(index: number): SpeechRecognitionResult;
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionResult {
+  length: number;
+  item(index: number): SpeechRecognitionAlternative;
+  [index: number]: SpeechRecognitionAlternative;
+  isFinal: boolean;
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string;
+  confidence: number;
+}
+
+declare var webkitSpeechRecognition: {
+  new (): SpeechRecognition;
+};
+
+declare var SpeechRecognition: {
+  new (): SpeechRecognition;
+};
+
 type Message = { id: string; role: "user" | "assistant"; content: string };
 type Conversation = { 
   id: string; 
@@ -42,8 +90,14 @@ export default function ChatPage() {
   const [selectedRating, setSelectedRating] = useState<number | null>(null);
   const [feedbackText, setFeedbackText] = useState("");
   const [messageReactions, setMessageReactions] = useState<Record<string, "like" | "dislike">>({});
+  const [isRecording, setIsRecording] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
+  const [recognitionError, setRecognitionError] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const committedTextRef = useRef<string>("");
 
   // Ensure Dialog only renders on client to avoid hydration mismatch
   useEffect(() => {
@@ -316,6 +370,127 @@ export default function ChatPage() {
     })();
     return () => { cancelled = true; };
   }, [activeId]);
+
+  // Initialize Speech Recognition
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Check browser support
+    const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    
+    if (!SpeechRecognition) {
+      setRecognitionError('Speech recognition not supported in this browser. Please use Chrome or Edge.');
+      return;
+    }
+
+    const recognitionInstance = new SpeechRecognition();
+    recognitionInstance.continuous = true;
+    recognitionInstance.interimResults = true;
+    recognitionInstance.lang = 'en-US';
+
+    recognitionInstance.onstart = () => {
+      setIsListening(true);
+      setRecognitionError(null);
+    };
+
+    recognitionInstance.onresult = (event: SpeechRecognitionEvent) => {
+      let interimTranscript = '';
+      let finalTranscript = '';
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript + ' ';
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+
+      // Update transcript state for display (interim only for live feedback)
+      setTranscript(interimTranscript);
+      
+      // Update input field - only add NEW final results to avoid duplicates
+      if (finalTranscript) {
+        // Append only the new final transcript to committed text
+        committedTextRef.current = (committedTextRef.current + ' ' + finalTranscript.trim()).trim();
+        setInput(committedTextRef.current + (interimTranscript ? ' ' + interimTranscript : ''));
+      } else if (interimTranscript) {
+        // Show committed text + current interim as preview
+        setInput(committedTextRef.current + (interimTranscript ? ' ' + interimTranscript : ''));
+      }
+    };
+
+    recognitionInstance.onerror = (event: SpeechRecognitionErrorEvent) => {
+      console.error('Speech recognition error:', event.error);
+      setIsListening(false);
+      
+      let errorMessage = 'Speech recognition error';
+      switch (event.error) {
+        case 'no-speech':
+          errorMessage = 'No speech detected. Please try again.';
+          break;
+        case 'audio-capture':
+          errorMessage = 'No microphone found. Please check your microphone.';
+          break;
+        case 'not-allowed':
+          errorMessage = 'Microphone permission denied. Please allow microphone access.';
+          break;
+        case 'network':
+          errorMessage = 'Network error. Please check your connection.';
+          break;
+        default:
+          errorMessage = `Speech recognition error: ${event.error}`;
+      }
+      
+      setRecognitionError(errorMessage);
+      setIsRecording(false);
+      recognitionInstance.stop();
+    };
+
+    recognitionInstance.onend = () => {
+      setIsListening(false);
+      // Auto-restart if still in recording mode
+      if (isRecording) {
+        try {
+          recognitionInstance.start();
+        } catch (err) {
+          // Already started or error
+          setIsRecording(false);
+        }
+      }
+    };
+
+    setRecognition(recognitionInstance);
+
+    // Cleanup
+    return () => {
+      if (recognitionInstance) {
+        recognitionInstance.stop();
+      }
+    };
+  }, []);
+
+  // Handle recording state changes
+  useEffect(() => {
+    if (!recognition) return;
+
+    if (isRecording) {
+      try {
+        recognition.start();
+      } catch (err: any) {
+        if (err.message?.includes('already started')) {
+          // Already running, ignore
+        } else {
+          console.error('Error starting recognition:', err);
+          setIsRecording(false);
+          setRecognitionError('Failed to start voice recording');
+        }
+      }
+    } else {
+      recognition.stop();
+      setTranscript("");
+    }
+  }, [isRecording, recognition]);
 
   function handlePromptClick(prompt: string) {
     setInput(prompt);
@@ -643,6 +818,50 @@ export default function ChatPage() {
       toast.error('Export failed');
     }
   }
+
+  const startRecording = () => {
+    if (!recognition) {
+      toast.error('Speech recognition not available. Please use Chrome or Edge.');
+      return;
+    }
+
+    // Request microphone permission
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(() => {
+        setIsRecording(true);
+        setTranscript("");
+        setRecognitionError(null);
+        // Preserve existing input in the ref
+        committedTextRef.current = input.trim();
+      })
+      .catch((err) => {
+        console.error('Microphone permission denied:', err);
+        toast.error('Microphone permission is required for voice input.');
+        setRecognitionError('Microphone permission denied');
+      });
+  };
+
+  const stopRecording = () => {
+    setIsRecording(false);
+    // Clear the committed text ref when stopping
+    committedTextRef.current = "";
+    if (input.trim()) {
+      // Auto-send if there's text
+      const textToSend = input.trim();
+      if (textToSend) {
+        sendMessage(textToSend);
+      }
+    }
+    setTranscript("");
+  };
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  };
 
   async function sendMessage(customText?: string) {
     if (!active || !activeId) return;
@@ -1374,6 +1593,63 @@ export default function ChatPage() {
               ))}
             </div>
           )}
+
+          {/* Voice Recording Status */}
+          {isRecording && (
+            <div className="mb-3 p-3 rounded-lg bg-[var(--brand-blue)]/10 border border-[var(--brand-blue)]/30">
+              <div className="flex items-center gap-3">
+                <div className="relative flex items-center justify-center">
+                  {/* Pulsing recording indicator */}
+                  <div className={`absolute h-3 w-3 rounded-full bg-red-500 ${isListening ? 'animate-pulse' : 'opacity-50'}`} />
+                  <div className="absolute h-3 w-3 rounded-full bg-red-500/50 animate-ping" />
+                  {/* Waveform animation */}
+                  <div className="flex items-center gap-1 ml-6">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div
+                        key={i}
+                        className="w-1 bg-[var(--brand-blue)] rounded-full waveform-bar"
+                        style={{
+                          animationDelay: `${i * 0.1}s`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <div className="text-xs font-medium text-[var(--brand-blue)] mb-1">
+                    {isListening ? 'Listening...' : 'Processing...'}
+                  </div>
+                  {transcript && (
+                    <div className="text-xs text-muted italic line-clamp-1">
+                      "{transcript}"
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={stopRecording}
+                  className="px-3 py-1 text-xs font-medium rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
+                >
+                  Stop
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {recognitionError && !isRecording && (
+            <div className="mb-3 p-2 rounded-lg bg-red-500/10 border border-red-500/30">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-red-400">{recognitionError}</p>
+                <button
+                  onClick={() => setRecognitionError(null)}
+                  className="text-red-400 hover:text-red-300 text-sm"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center gap-3">
             <input
               value={input}
@@ -1381,18 +1657,65 @@ export default function ChatPage() {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
+                  if (isRecording) {
+                    stopRecording();
+                  } else {
+                    sendMessage();
+                  }
+                }
+              }}
+              placeholder={isRecording ? "Speaking..." : "Ask about research, citations, grammar, or sources..."}
+              className="flex-1 px-5 py-3.5 rounded-xl bg-input-bg border-2 border-theme text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-[var(--brand-blue)]/50 focus:border-[var(--brand-blue)] transition-all shadow-sm"
+              disabled={loading || !active || isRecording}
+            />
+            
+            {/* Microphone Button */}
+            <button
+              type="button"
+              onClick={toggleRecording}
+              disabled={loading || !active || !recognition}
+              className={`h-12 w-12 grid place-items-center rounded-xl transition-all hover:scale-110 active:scale-95 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed ${
+                isRecording 
+                  ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
+                  : 'bg-[var(--brand-blue)] hover:bg-[var(--brand-blue)]/90'
+              }`}
+              title={isRecording ? 'Stop recording' : 'Start voice input'}
+            >
+              {isRecording ? (
+                <div className="relative">
+                  <div className="h-5 w-5 rounded-full bg-white" />
+                  <div className="absolute inset-0 h-5 w-5 rounded-full bg-white animate-ping opacity-75" />
+                </div>
+              ) : (
+                <svg
+                  className="h-5 w-5 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                  />
+                </svg>
+              )}
+            </button>
+
+            {/* Send Button */}
+            <button
+              onClick={() => {
+                if (isRecording) {
+                  stopRecording();
+                } else {
                   sendMessage();
                 }
               }}
-              placeholder="Ask about research, citations, grammar, or sources..."
-              className="flex-1 px-5 py-3.5 rounded-xl bg-input-bg border-2 border-theme text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-[var(--brand-blue)]/50 focus:border-[var(--brand-blue)] transition-all shadow-sm"
-              disabled={loading || !active}
-            />
-            <button
-              onClick={() => sendMessage()}
               className="h-12 w-12 grid place-items-center rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-110 active:scale-95 shadow-lg hover:shadow-xl"
               style={{ background: "var(--brand-yellow)", color: "#1f2937" }}
-              disabled={!input.trim() || loading || !active}
+              disabled={(!input.trim() && !transcript.trim()) || loading || !active || isRecording}
+              title="Send message"
             >
               {loading ? (
                 <div className="h-4 w-4 border-2 border-[#1f2937] border-t-transparent rounded-full animate-spin" />
@@ -1401,7 +1724,26 @@ export default function ChatPage() {
               )}
             </button>
           </div>
-          <div className="mt-3 text-xs text-muted text-center">Askademia can make mistakes. Verify important info.</div>
+          
+          <div className="mt-3 flex items-center justify-between text-xs text-muted">
+            <div className="flex items-center gap-4">
+              <span>Askademia can make mistakes. Verify important info.</span>
+              {recognition && (
+                <span className="flex items-center gap-1">
+                  <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4z" />
+                    <path d="M5.5 9.643a.75.75 0 00-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5h-1.5v-1.546A6.001 6.001 0 0016 10v-.357a.75.75 0 00-1.5 0V10a4.5 4.5 0 01-9 0v-.357z" />
+                  </svg>
+                  Voice input available
+                </span>
+              )}
+            </div>
+            {isRecording && (
+              <span className="text-[var(--brand-blue)] font-medium">
+                Press Enter or click Stop to send
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

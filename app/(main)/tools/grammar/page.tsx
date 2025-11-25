@@ -1,7 +1,7 @@
 // Grammar & Plagiarism Tool Page
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { toast } from "react-toastify";
 
@@ -11,11 +11,6 @@ type GrammarIssue = {
   severity: string;
 };
 
-type PlagiarismIssue = {
-  type: string;
-  message: string;
-};
-
 type GrammarResult = {
   score: number;
   issues: GrammarIssue[];
@@ -23,12 +18,33 @@ type GrammarResult = {
   summary: string;
 };
 
+type PlagiarismMatch = {
+  id: string;
+  sourceId: string;
+  sourceTitle: string;
+  sourceUrl: string;
+  snippet: string;
+  matchedText: string;
+  start: number;
+  end: number;
+  overlapRatio: number;
+};
+
+type PlagiarismSourceSummary = {
+  id: string;
+  title: string;
+  url: string;
+  matchCount: number;
+  totalOverlap: number;
+};
+
 type PlagiarismResult = {
   similarity: number;
   risk: string;
-  issues: PlagiarismIssue[];
   recommendations: string[];
   summary: string;
+  matches?: PlagiarismMatch[];
+  sources?: PlagiarismSourceSummary[];
 };
 
 export default function GrammarPlagiarismPage() {
@@ -40,6 +56,7 @@ export default function GrammarPlagiarismPage() {
   const [checkingPlagiarism, setCheckingPlagiarism] = useState(false);
   const [grammarResult, setGrammarResult] = useState<GrammarResult | null>(null);
   const [plagiarismResult, setPlagiarismResult] = useState<PlagiarismResult | null>(null);
+  const [plagiarismMatches, setPlagiarismMatches] = useState<PlagiarismMatch[]>([]);
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -105,6 +122,7 @@ export default function GrammarPlagiarismPage() {
       }
 
       setPlagiarismResult(data);
+      setPlagiarismMatches(data.matches || []);
       // Calculate plagiarism score (100 - similarity, so lower similarity = higher score)
       const score = Math.max(0, 100 - data.similarity);
       setPlagiarismScore(score);
@@ -128,6 +146,47 @@ export default function GrammarPlagiarismPage() {
     if (score >= 90) return "bg-emerald-500/20 text-emerald-300 border-emerald-400/30";
     if (score >= 70) return "bg-yellow-500/20 text-yellow-300 border-yellow-400/30";
     return "bg-red-500/20 text-red-300 border-red-400/30";
+  };
+
+  const renderHighlightedText = () => {
+    if (!text.trim()) {
+      return <span className="text-muted">Type or paste text to see highlighted overlaps.</span>;
+    }
+    if (plagiarismMatches.length === 0) {
+      return <span className="text-muted">No overlapping passages detected yet.</span>;
+    }
+    const ordered = [...plagiarismMatches].sort((a, b) => a.start - b.start);
+    const nodes: ReactNode[] = [];
+    let cursor = 0;
+    ordered.forEach((match) => {
+      if (match.start > cursor) {
+        nodes.push(
+          <span key={`plain-${cursor}`} className="text-foreground">
+            {text.slice(cursor, match.start)}
+          </span>
+        );
+      }
+      nodes.push(
+        <span
+          key={`match-${match.id}`}
+          className="bg-red-500/30 text-foreground rounded px-1 py-0.5 inline-flex flex-wrap gap-1 items-baseline"
+        >
+          <span>{text.slice(match.start, match.end)}</span>
+          <span className="text-[10px] uppercase tracking-wide text-red-100">
+            {match.sourceTitle}
+          </span>
+        </span>
+      );
+      cursor = match.end;
+    });
+    if (cursor < text.length) {
+      nodes.push(
+        <span key={`tail-${cursor}`} className="text-foreground">
+          {text.slice(cursor)}
+        </span>
+      );
+    }
+    return nodes;
   };
 
   return (
@@ -170,6 +229,29 @@ export default function GrammarPlagiarismPage() {
             {checkingPlagiarism ? "Checking..." : "Check Plagiarism"}
           </button>
         </div>
+        {plagiarismResult?.sources && plagiarismResult.sources.length > 0 && (
+          <div>
+            <div className="text-xs text-muted mb-1">Flagged Sources</div>
+            <div className="space-y-2">
+              {plagiarismResult.sources.map((source) => (
+                <a
+                  key={source.id}
+                  href={source.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block rounded-lg border border-theme bg-card px-3 py-2 hover:border-[var(--brand-blue)] transition-colors"
+                >
+                  <div className="text-sm font-medium text-foreground">{source.title}</div>
+                  <div className="text-[11px] text-muted truncate">{source.url}</div>
+                  <div className="text-[11px] text-muted mt-1">
+                    {source.matchCount} match{source.matchCount > 1 ? "es" : ""} •{" "}
+                    {Math.round(source.totalOverlap)} chars overlap
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
         <div>
           <div className="text-xs text-muted mb-2">
             Issues {issues.length > 0 && `(${issues.length})`}
@@ -280,6 +362,17 @@ export default function GrammarPlagiarismPage() {
           className="flex-1 min-h-[400px] rounded-lg bg-[#0f1218] border border-black/10 p-3 text-sm resize-none outline-none focus:border-black/20 text-foreground placeholder:placeholder-muted"
           placeholder="Paste or type text to check..."
         />
+        {plagiarismMatches.length > 0 && (
+          <div className="mt-6">
+            <div className="text-xs text-muted uppercase tracking-wide mb-2">Plagiarism highlights</div>
+            <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 text-sm leading-relaxed whitespace-pre-wrap">
+              {renderHighlightedText()}
+            </div>
+            <div className="mt-2 text-xs text-muted">
+              Highlighted passages overlap with known sources. Rephrase or cite appropriately.
+            </div>
+          </div>
+        )}
         <div className="mt-3 text-xs text-muted">Askademia can make mistakes. Verify important info.</div>
       </div>
     </div>

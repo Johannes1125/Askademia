@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { createClient } from '@/lib/supabase/server';
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { detectMatches } from '@/lib/plagiarism/detector';
+import { gatherWebSources } from '@/lib/plagiarism/web';
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,79 +25,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json(
-        { error: 'OpenAI API key is not configured' },
-        { status: 500 }
-      );
-    }
-
-    // Use OpenAI to check for potential plagiarism indicators
-    // Note: This is a basic check using AI, not a comprehensive plagiarism detector
-    const prompt = `You are a plagiarism detection assistant. Analyze the following text for potential plagiarism indicators such as:
-- Unusual phrasing that might be copied
-- Lack of original analysis
-- Potential citation issues
-- Overly generic or formulaic content
-
-Text to check:
-"""
-${text}
-"""
-
-Provide a JSON response with the following structure:
-{
-  "similarity": <number from 0-100 representing potential similarity>,
-  "risk": "<low|medium|high>",
-  "issues": [
-    {
-      "type": "<citation|originality|formulaic|generic>",
-      "message": "<description of potential issue>"
-    }
-  ],
-  "recommendations": [
-    "<specific recommendations for improvement>"
-  ],
-  "summary": "<brief overall assessment>"
-}
-
-Return ONLY the JSON object, no other text.`;
-
-    const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: 'You are a plagiarism detection assistant. Return only valid JSON objects.' },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.3,
-      max_tokens: 600,
+    const dynamicSources = await gatherWebSources(text, {
+      maxQueries: 3,
+      resultsPerQuery: 2,
     });
 
-    const responseText = completion.choices[0]?.message?.content?.trim();
-    if (!responseText) {
-      throw new Error('No response from OpenAI');
+    const { matches, summary: sourceSummary } = detectMatches(text, dynamicSources);
+    const totalMatchedChars = matches.reduce((sum, segment) => sum + (segment.end - segment.start), 0);
+    const similarity = Math.round(Math.min(100, (totalMatchedChars / Math.max(1, text.length)) * 100));
+    const risk = similarity > 45 ? 'high' : similarity > 20 ? 'medium' : 'low';
+
+    const recommendations: string[] = [];
+    if (matches.length > 0) {
+      recommendations.push('Rephrase or cite the highlighted sections that overlap with external sources.');
+      const uniqueSources = Array.from(new Set(matches.map((m) => m.sourceTitle)));
+      recommendations.push(`Review the following sources for proper attribution: ${uniqueSources.join(', ')}.`);
+    } else {
+      recommendations.push('No overlaps detected in the current reference set. Maintain detailed citations for originality.');
     }
 
-    // Parse JSON response
-    let result;
-    try {
-      const cleaned = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      result = JSON.parse(cleaned);
-    } catch (parseError) {
-      // Fallback
-      result = {
-        similarity: 5,
-        risk: 'low',
-        issues: [],
-        recommendations: ['Ensure proper citations', 'Add original analysis'],
-        summary: 'Basic plagiarism check completed',
-      };
-    }
+    const summary =
+      matches.length === 0
+        ? 'No overlapping passages were found in the reference corpus.'
+        : `Detected ${matches.length} overlapping passage${matches.length > 1 ? 's' : ''} across ${sourceSummary.length} source${sourceSummary.length === 1 ? '' : 's'}.`;
 
-    // Ensure similarity is between 0-100
-    result.similarity = Math.max(0, Math.min(100, result.similarity || 5));
-
-    return NextResponse.json(result);
+    return NextResponse.json({
+      similarity,
+      risk,
+      matches,
+      sources: sourceSummary,
+      recommendations,
+      summary,
+    });
   } catch (error: any) {
     console.error('Error checking plagiarism:', error);
     return NextResponse.json(
