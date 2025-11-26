@@ -7,7 +7,6 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "react-toastify";
 import {
   DashboardIcon,
-  BarChartIcon,
   GearIcon,
   ExitIcon,
   MagnifyingGlassIcon,
@@ -15,6 +14,7 @@ import {
   Cross2Icon,
   SunIcon,
   MoonIcon,
+  ClockIcon,
 } from "@radix-ui/react-icons";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useAuth } from "@/lib/hooks/useAuth";
@@ -30,6 +30,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [loggingOut, setLoggingOut] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [query, setQuery] = useState("");
+  const [currentTime, setCurrentTime] = useState(new Date());
   const [dark, setDark] = useState(() => {
     if (typeof window !== "undefined") {
       const t = localStorage.getItem("theme");
@@ -39,12 +40,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return false;
   });
 
-  // Ensure Dialog only renders on client
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Sync dark mode class with document
+  // Update time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   useEffect(() => {
     const el = document.documentElement;
     el.classList.toggle("dark", dark);
@@ -55,7 +62,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [dark]);
 
   useEffect(() => {
-    // Don't check admin access on login page (it's in auth layout, not this one)
     if (pathname?.includes('/login')) {
       setLoading(false);
       return;
@@ -63,11 +69,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     checkAdminAccess();
   }, [pathname]);
 
+  // Prevent back navigation after login - replace history state
+  useEffect(() => {
+    if (!loading && user) {
+      // Replace current state so user can't go back to login
+      window.history.replaceState(null, '', pathname);
+      
+      // Push a new state and listen for popstate
+      const handlePopState = () => {
+        // If trying to go back, push forward again
+        window.history.pushState(null, '', pathname);
+      };
+
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
+    }
+  }, [loading, user, pathname]);
+
   const checkAdminAccess = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
-      router.push("/admin/login");
+      router.replace("/admin/login");
       return;
     }
 
@@ -79,7 +102,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     if (error || !profile || profile.role !== "admin") {
       toast.error("Admin access required");
-      router.push("/admin/login");
+      router.replace("/admin/login");
       return;
     }
 
@@ -91,7 +114,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const { error } = await supabase.auth.signOut();
     if (!error) {
       toast.success("Logged out successfully");
-      window.location.href = "/admin/login";
+      // Use replace to clear history
+      window.location.replace("/admin/login");
     } else {
       toast.error(error.message || "Failed to log out");
       setLoggingOut(false);
@@ -99,25 +123,45 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   };
 
-  // Don't show loading on login page
   if (pathname?.includes('/login')) {
     return <>{children}</>;
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-white dark:bg-[#0f1219] text-slate-900">
-        <div className="text-black/60 dark:text-white/60">Checking admin access...</div>
+      <div className="flex items-center justify-center h-screen bg-app">
+        <div className="text-center">
+          <div className="h-10 w-10 border-3 border-red-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-sm text-muted">Checking admin access...</p>
+        </div>
       </div>
     );
   }
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+  };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
 
   return (
     <div className="h-screen bg-app text-foreground flex overflow-hidden">
       {/* Mobile backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -125,32 +169,37 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Admin Sidebar */}
       <aside
         className={`fixed md:static inset-y-0 left-0 z-50 w-72 flex flex-col transition-transform duration-300
-        border-r border-gray-200 dark:border-white/10 bg-card text-foreground ${
+        border-r border-theme bg-gradient-to-b from-card via-card to-card/90 text-foreground ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
-        <div className="px-4 py-4 border-b border-gray-200 dark:border-white/10">
+        {/* Logo Section */}
+        <div className="px-5 py-5 border-b border-theme bg-gradient-to-r from-red-500/5 to-transparent">
           <div className="flex items-center justify-between">
-            <Link href="/admin" className="flex items-center gap-3" onClick={() => setSidebarOpen(false)}>
-              <div className="h-9 w-9 grid place-items-center rounded-lg" style={{ background: "var(--brand-yellow)" }}>
-                <span className="text-[#1f2937] font-bold">A</span>
+            <Link href="/admin" className="flex items-center gap-3 group" onClick={() => setSidebarOpen(false)}>
+              <div 
+                className="h-10 w-10 grid place-items-center rounded-xl shadow-lg transition-transform group-hover:scale-105" 
+                style={{ background: "linear-gradient(135deg, #EF4444, #DC2626)" }}
+              >
+                <span className="text-lg font-bold text-white">A</span>
               </div>
               <div>
-                <div className="font-semibold text-foreground">Askademia</div>
-                <div className="text-xs text-muted">Research AI</div>
+                <div className="font-bold text-foreground">Admin Panel</div>
+                <div className="text-xs text-muted">Askademia</div>
               </div>
             </Link>
-            {/* Close button for mobile */}
             <button
               onClick={() => setSidebarOpen(false)}
-              className="md:hidden text-gray-600 dark:text-white/80 hover:text-gray-900 dark:hover:text-white"
+              className="md:hidden p-2 rounded-lg hover:bg-subtle-bg text-muted hover:text-foreground transition-all"
               aria-label="Close sidebar"
             >
               <Cross2Icon className="h-5 w-5" />
             </button>
           </div>
-          <div className="mt-4 flex items-center gap-2 rounded-md px-3 py-2 bg-gray-50 dark:bg-white/5 text-foreground border border-gray-200 dark:border-white/10">
-            <MagnifyingGlassIcon className="h-4 w-4 text-muted" />
+          
+          {/* Search */}
+          <div className="mt-4 flex items-center gap-2 rounded-xl border border-theme bg-input-bg px-4 py-2.5 focus-within:border-red-500 focus-within:ring-1 focus-within:ring-red-500/30 transition-all">
+            <MagnifyingGlassIcon className="h-4 w-4 text-muted flex-shrink-0" />
             <input
               type="text"
               value={query}
@@ -161,115 +210,145 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         </div>
         
-        <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
           <Link
             href="/admin"
             onClick={() => setSidebarOpen(false)}
-            className={`flex items-center gap-2 text-left text-sm px-3 py-2 rounded-lg transition-colors ${
+            className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-all ${
               pathname === "/admin"
-                ? "bg-[var(--brand-blue)]/15 text-[var(--brand-blue)]"
-                : "text-muted hover:text-foreground hover:bg-input-bg"
+                ? "bg-red-500/15 text-foreground"
+                : "text-muted hover:text-foreground hover:bg-subtle-bg"
             }`}
           >
-            <DashboardIcon /> Dashboard
+            <span className={`transition-colors ${pathname === "/admin" ? 'text-red-500' : ''}`}>
+              <DashboardIcon className="h-4 w-4" />
+            </span>
+            Dashboard
           </Link>
         </nav>
 
-        <div className="mt-auto border-t border-gray-200 dark:border-white/10 p-4">
-          <div className="grid gap-2">
-            <Link 
-              href="/settings" 
-              onClick={() => setSidebarOpen(false)} 
-              className="flex items-center gap-2 text-sm text-muted hover:text-foreground"
-            >
-              <GearIcon /> Settings
-            </Link>
-            {mounted && (
-              <Dialog.Root open={logoutModalOpen} onOpenChange={setLogoutModalOpen}>
-                <Dialog.Trigger asChild>
-                  <button className="flex items-center gap-2 text-left text-sm text-muted hover:text-foreground">
-                    <ExitIcon /> Logout
-                  </button>
-                </Dialog.Trigger>
-                <Dialog.Portal>
-                  <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
-                  <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md rounded-xl bg-card p-6 shadow-xl z-50 border border-theme">
-                      <Dialog.Title className="text-lg font-semibold text-foreground mb-2">
+        {/* Footer */}
+        <div className="border-t border-theme p-3 space-y-1">
+          <Link 
+            href="/settings" 
+            onClick={() => setSidebarOpen(false)} 
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted hover:text-foreground hover:bg-subtle-bg transition-all"
+          >
+            <GearIcon className="h-4 w-4" />
+            Settings
+          </Link>
+          
+          {mounted && (
+            <Dialog.Root open={logoutModalOpen} onOpenChange={setLogoutModalOpen}>
+              <Dialog.Trigger asChild>
+                <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted hover:text-foreground hover:bg-subtle-bg transition-all">
+                  <ExitIcon className="h-4 w-4" />
+                  Logout
+                </button>
+              </Dialog.Trigger>
+              <Dialog.Portal>
+                <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" />
+                <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md rounded-2xl bg-card p-6 shadow-2xl z-50 border border-theme animate-in zoom-in-95 duration-200">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
+                      <ExitIcon className="h-5 w-5 text-red-500" />
+                    </div>
+                    <Dialog.Title className="text-lg font-semibold text-foreground">
                       Confirm Logout
                     </Dialog.Title>
-                      <Dialog.Description className="text-sm text-muted mb-6">
-                      Are you sure you want to log out? You will need to sign in again to access the admin panel.
-                    </Dialog.Description>
-                    <div className="flex gap-3 justify-end">
-                      <Dialog.Close asChild>
-                        <button
-                          disabled={loggingOut}
-                            className="px-4 py-2 text-sm font-medium rounded-lg border border-theme bg-card text-foreground hover:bg-input-bg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          Cancel
-                        </button>
-                      </Dialog.Close>
+                  </div>
+                  <Dialog.Description className="text-sm text-muted mb-6">
+                    Are you sure you want to log out? You will need to sign in again to access the admin panel.
+                  </Dialog.Description>
+                  <div className="flex gap-3 justify-end">
+                    <Dialog.Close asChild>
                       <button
-                        onClick={handleLogout}
                         disabled={loggingOut}
-                        className="px-4 py-2 text-sm font-medium rounded-lg text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-                        style={{ background: "var(--brand-blue)" }}
+                        className="px-5 py-2.5 text-sm font-medium rounded-xl border border-theme bg-card text-foreground hover:bg-subtle-bg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {loggingOut ? "Logging out..." : "Logout"}
+                        Cancel
                       </button>
-                    </div>
-                  </Dialog.Content>
-                </Dialog.Portal>
-              </Dialog.Root>
-            )}
-            {!mounted && (
-                  <button
-                    onClick={() => setLogoutModalOpen(true)}
-                    className="flex items-center gap-2 text-left text-sm text-muted hover:text-foreground"
-                  >
-                <ExitIcon /> Logout
-              </button>
-            )}
-          </div>
+                    </Dialog.Close>
+                    <button
+                      onClick={handleLogout}
+                      disabled={loggingOut}
+                      className="px-5 py-2.5 text-sm font-medium rounded-xl text-white transition-all hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-red-500/25"
+                      style={{ background: "linear-gradient(135deg, #EF4444, #DC2626)" }}
+                    >
+                      {loggingOut ? "Logging out..." : "Logout"}
+                    </button>
+                  </div>
+                </Dialog.Content>
+              </Dialog.Portal>
+            </Dialog.Root>
+          )}
+          {!mounted && (
+            <button
+              onClick={() => setLogoutModalOpen(true)}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted hover:text-foreground hover:bg-subtle-bg transition-all"
+            >
+              <ExitIcon className="h-4 w-4" />
+              Logout
+            </button>
+          )}
         </div>
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 border-b border-theme bg-card backdrop-blur flex items-center justify-between px-4">
-          <div className="flex items-center gap-3">
-            {/* Burger menu button for mobile */}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        {/* Header */}
+        <header className="h-16 border-b border-theme backdrop-blur-sm bg-card/80 flex items-center justify-between px-4 sm:px-6">
+          <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="md:hidden text-gray-600 dark:text-white hover:bg-gray-100 dark:hover:bg-white/10 rounded-md p-2"
+              className="md:hidden p-2.5 rounded-xl bg-subtle-bg hover:bg-white/10 text-foreground transition-all"
               aria-label="Toggle sidebar"
             >
               <HamburgerMenuIcon className="h-5 w-5" />
             </button>
-            <Link href="/admin" className="flex items-center gap-3">
-              <div className="h-8 w-8 grid place-items-center rounded-lg" style={{ background: "var(--brand-yellow)" }}>
-                <span className="text-[#1f2937] font-bold text-sm">A</span>
+            <Link href="/admin" className="flex items-center gap-3 md:hidden">
+              <div 
+                className="h-8 w-8 grid place-items-center rounded-lg shadow-md" 
+                style={{ background: "linear-gradient(135deg, #EF4444, #DC2626)" }}
+              >
+                <span className="text-sm font-bold text-white">A</span>
               </div>
-              <span className="font-semibold text-foreground">Askademia</span>
+              <span className="font-semibold text-foreground">Admin</span>
             </Link>
+            
+            {/* Time Display */}
+            <div className="hidden md:flex items-center gap-3 px-4 py-2 rounded-xl bg-subtle-bg border border-theme">
+              <ClockIcon className="h-4 w-4 text-red-500" />
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-foreground">{formatTime(currentTime)}</span>
+                <span className="text-xs text-muted">{formatDate(currentTime)}</span>
+              </div>
+            </div>
           </div>
-          <div className="ml-auto flex items-center gap-2">
+          
+          <div className="flex items-center gap-3">
             <button
               onClick={() => setDark((d) => !d)}
-              className="h-9 w-9 grid place-items-center rounded-md border border-theme hover:bg-input-bg text-foreground"
+              className="h-10 w-10 grid place-items-center rounded-xl border border-theme bg-card hover:bg-subtle-bg text-foreground transition-all hover:scale-105"
               aria-label="Toggle theme"
               title="Toggle theme"
             >
               {dark ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
             </button>
             {user && (
-              <div className="text-sm text-foreground/80">{user.email}</div>
+              <div className="flex items-center gap-3">
+                <div className="hidden sm:block text-sm text-muted">{user.email}</div>
+                <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-red-500 to-red-600 grid place-items-center text-white text-sm font-semibold shadow-lg">
+                  {user.email?.charAt(0).toUpperCase()}
+                </div>
+              </div>
             )}
           </div>
         </header>
+        
         <main className="flex-1 overflow-y-auto bg-app">{children}</main>
       </div>
     </div>
   );
 }
-

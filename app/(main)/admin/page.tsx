@@ -13,10 +13,21 @@ import {
   ChatBubbleIcon,
   PaperPlaneIcon,
   ReaderIcon,
+  MixerHorizontalIcon,
+  StarFilledIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  CalendarIcon,
 } from "@radix-ui/react-icons";
 const AdminCharts = dynamic(() => import("@/components/admin/AdminCharts"), {
   ssr: false,
-  loading: () => <div className="card p-6">Loading charts…</div>,
+  loading: () => (
+    <div className="bg-card rounded-2xl p-8 border border-theme">
+      <div className="flex items-center justify-center h-64">
+        <div className="h-8 w-8 border-3 border-red-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    </div>
+  ),
 });
 
 type Stats = {
@@ -91,7 +102,7 @@ export default function AdminDashboardPage() {
   const checkAdminAccess = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      router.push("/admin/login");
+      router.replace("/admin/login");
       return;
     }
 
@@ -103,7 +114,7 @@ export default function AdminDashboardPage() {
 
     if (!profile || profile.role !== "admin") {
       toast.error("Admin access required");
-      router.push("/admin/login");
+      router.replace("/admin/login");
     }
   };
 
@@ -155,7 +166,6 @@ export default function AdminDashboardPage() {
 
   const filteredActivityData = stats?.activityData.filter((item) => {
     if (activityFilter === "all") return true;
-    // You can add more filtering logic here
     return true;
   }) || [];
 
@@ -165,37 +175,102 @@ export default function AdminDashboardPage() {
 
   if (loading && !stats) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-slate-600 dark:text-white/60">Loading dashboard...</div>
+      <div className="flex items-center justify-center h-full bg-app">
+        <div className="text-center">
+          <div className="h-10 w-10 border-3 border-red-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-sm text-muted">Loading dashboard...</p>
+        </div>
       </div>
     );
   }
 
+  const statCards = [
+    { 
+      label: "Total Users", 
+      value: stats?.totalUsers || 0, 
+      icon: PersonIcon, 
+      gradient: "from-blue-500 to-blue-600",
+      bg: "bg-blue-500/10",
+      border: "border-blue-500/20"
+    },
+    { 
+      label: "New Users", 
+      value: stats?.newUsers || 0, 
+      icon: PlusCircledIcon, 
+      gradient: "from-emerald-500 to-emerald-600",
+      bg: "bg-emerald-500/10",
+      border: "border-emerald-500/20"
+    },
+    { 
+      label: "Conversations", 
+      value: stats?.totalConversations || 0, 
+      icon: ChatBubbleIcon, 
+      gradient: "from-violet-500 to-violet-600",
+      bg: "bg-violet-500/10",
+      border: "border-violet-500/20"
+    },
+    { 
+      label: "Messages", 
+      value: stats?.totalMessages || 0, 
+      icon: PaperPlaneIcon, 
+      gradient: "from-amber-500 to-orange-600",
+      bg: "bg-amber-500/10",
+      border: "border-amber-500/20"
+    },
+    { 
+      label: "Citations", 
+      value: stats?.totalCitations || 0, 
+      icon: ReaderIcon, 
+      gradient: "from-red-500 to-red-600",
+      bg: "bg-red-500/10",
+      border: "border-red-500/20"
+    },
+  ];
+
   return (
     <div className="space-y-6 p-6 bg-app text-foreground min-h-full">
+      {/* Welcome Banner */}
+      <div className="relative overflow-hidden rounded-2xl p-6 bg-gradient-to-r from-red-500 to-red-600 text-white">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48cGF0aCBkPSJNMzYgMzRjMC0yLjIxLTEuNzktNC00LTRzLTQgMS43OS00IDQgMS43OSA0IDQgNCA0LTEuNzkgNC00eiIvPjwvZz48L2c+PC9zdmc+')] opacity-30" />
+        <div className="relative">
+          <h1 className="text-2xl font-bold mb-2">Welcome to Admin Dashboard</h1>
+          <p className="text-white/80 text-sm">Monitor and manage your Askademia platform</p>
+        </div>
+      </div>
 
       {/* Filters */}
-      <div className="bg-card rounded-xl p-6 shadow-sm border border-theme">
-        <h2 className="text-xl font-bold text-foreground mb-5">Filters</h2>
+      <div className="bg-card rounded-2xl p-6 shadow-sm border border-theme">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
+            <MixerHorizontalIcon className="h-5 w-5 text-red-500" />
+          </div>
+          <h2 className="text-lg font-bold text-foreground">Filters</h2>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div>
-            <label className="text-sm font-medium text-muted mb-2 block">Start Date</label>
+            <label className="text-sm font-medium text-muted mb-2 block flex items-center gap-2">
+              <CalendarIcon className="h-3.5 w-3.5" />
+              Start Date
+            </label>
             <input
               type="date"
               value={dateRange.startDate}
               max={today}
               onChange={(e) => handleDateRangeChange("startDate", e.target.value)}
-              className="w-full rounded-lg bg-input-bg border border-theme px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              className="w-full rounded-xl bg-input-bg border border-theme px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-all"
             />
           </div>
           <div>
-            <label className="text-sm font-medium text-muted mb-2 block">End Date</label>
+            <label className="text-sm font-medium text-muted mb-2 block flex items-center gap-2">
+              <CalendarIcon className="h-3.5 w-3.5" />
+              End Date
+            </label>
             <input
               type="date"
               value={dateRange.endDate}
               max={today}
               onChange={(e) => handleDateRangeChange("endDate", e.target.value)}
-              className="w-full rounded-lg bg-input-bg border border-theme px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              className="w-full rounded-xl bg-input-bg border border-theme px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-all"
             />
           </div>
           <div>
@@ -203,136 +278,142 @@ export default function AdminDashboardPage() {
             <select
               value={period}
               onChange={(e) => setPeriod(e.target.value as "day" | "month" | "year")}
-              className="w-full rounded-lg bg-input-bg border border-theme px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer"
+              className="w-full rounded-xl bg-input-bg border border-theme px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition-all cursor-pointer"
             >
-              <option value="day">Day</option>
-              <option value="month">Month</option>
-              <option value="year">Year</option>
+              <option value="day">Daily</option>
+              <option value="month">Monthly</option>
+              <option value="year">Yearly</option>
             </select>
           </div>
         </div>
         <button
           onClick={resetFilters}
-          className="px-5 py-2.5 rounded-lg bg-card border border-theme text-sm font-medium text-muted hover:bg-input-bg transition-colors"
+          className="px-5 py-2.5 rounded-xl bg-subtle-bg border border-theme text-sm font-medium text-muted hover:text-foreground hover:bg-input-bg transition-all"
         >
           Reset Filters
         </button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Total Users Card */}
-        <div className="bg-blue-500/20 dark:bg-blue-800/60 backdrop-blur-md rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-300 relative border border-blue-300/30 dark:border-blue-700/50">
-          <div className="absolute top-4 left-4 w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-            <PersonIcon className="w-5 h-5 text-white" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {statCards.map((card) => (
+          <div
+            key={card.label}
+            className={`relative overflow-hidden rounded-2xl p-5 ${card.bg} border ${card.border} hover:shadow-lg transition-all duration-300 group`}
+          >
+            <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full bg-gradient-to-br ${card.gradient} opacity-10 group-hover:opacity-20 transition-opacity`} />
+            <div className="relative">
+              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${card.gradient} flex items-center justify-center mb-4 shadow-lg`}>
+                <card.icon className="w-6 h-6 text-white" />
+              </div>
+              <div className="text-sm font-medium text-muted mb-1">{card.label}</div>
+              <div className="text-3xl font-bold text-foreground">{card.value.toLocaleString()}</div>
+            </div>
           </div>
-          <div className="text-sm font-medium text-gray-800 dark:text-white mb-2 mt-1 pl-14">Total Users</div>
-          <div className="text-3xl font-bold text-blue-700 dark:text-white">{stats?.totalUsers || 0}</div>
-        </div>
-
-        {/* New Users Card */}
-        <div className="bg-green-500/20 dark:bg-green-800/60 backdrop-blur-md rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-300 relative border border-green-300/30 dark:border-green-700/50">
-          <div className="absolute top-4 left-4 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
-            <PlusCircledIcon className="w-5 h-5 text-white" />
-          </div>
-          <div className="text-sm font-medium text-gray-800 dark:text-white mb-2 mt-1 pl-14">New Users</div>
-          <div className="text-3xl font-bold text-green-700 dark:text-white">{stats?.newUsers || 0}</div>
-        </div>
-
-        {/* Conversations Card */}
-        <div className="bg-purple-500/20 dark:bg-purple-800/60 backdrop-blur-md rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-300 relative border border-purple-300/30 dark:border-purple-700/50">
-          <div className="absolute top-4 left-4 w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center">
-            <ChatBubbleIcon className="w-5 h-5 text-white" />
-          </div>
-          <div className="text-sm font-medium text-gray-800 dark:text-white mb-2 mt-1 pl-14">Conversations</div>
-          <div className="text-3xl font-bold text-purple-700 dark:text-white">{stats?.totalConversations || 0}</div>
-        </div>
-
-        {/* Messages Card */}
-        <div className="bg-orange-500/20 dark:bg-orange-800/60 backdrop-blur-md rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-300 relative border border-orange-300/30 dark:border-orange-700/50">
-          <div className="absolute top-4 left-4 w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center">
-            <PaperPlaneIcon className="w-5 h-5 text-white" />
-          </div>
-          <div className="text-sm font-medium text-gray-800 dark:text-white mb-2 mt-1 pl-14">Messages</div>
-          <div className="text-3xl font-bold text-orange-700 dark:text-white">{stats?.totalMessages || 0}</div>
-        </div>
-
-        {/* Citations Card */}
-        <div className="bg-red-500/20 dark:bg-red-800/60 backdrop-blur-md rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-300 relative border border-red-300/30 dark:border-red-700/50">
-          <div className="absolute top-4 left-4 w-10 h-10 bg-red-500 rounded-full flex items-center justify-center">
-            <ReaderIcon className="w-5 h-5 text-white" />
-          </div>
-          <div className="text-sm font-medium text-gray-800 dark:text-white mb-2 mt-1 pl-14">Citations</div>
-          <div className="text-3xl font-bold text-red-700 dark:text-white">{stats?.totalCitations || 0}</div>
-        </div>
+        ))}
       </div>
 
-      {/* Charts (dynamically loaded) */}
+      {/* Charts */}
       <AdminCharts data={filteredActivityData} period={period} />
 
       {/* Feedback Section */}
-      <div className="card bg-card border-theme p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">User Feedback</h2>
-          <div className="text-sm text-muted">Total: {feedback.length}</div>
+      <div className="bg-card rounded-2xl border border-theme overflow-hidden">
+        <div className="p-6 border-b border-theme bg-gradient-to-r from-amber-500/5 to-transparent">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                <StarFilledIcon className="h-5 w-5 text-amber-500" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-foreground">User Feedback</h2>
+                <p className="text-sm text-muted">Recent reviews from users</p>
+              </div>
+            </div>
+            <div className="px-4 py-2 rounded-xl bg-subtle-bg border border-theme text-sm font-medium text-foreground">
+              {feedback.length} total
+            </div>
+          </div>
         </div>
-        <div className="space-y-3 max-h-[600px] overflow-y-auto">
+        
+        <div className="space-y-2 p-4 max-h-[600px] overflow-y-auto">
           {pagedFeedback.length > 0 ? (
             pagedFeedback.map((item) => (
               <div
                 key={item.id}
-                className="p-4 rounded-lg bg-input-bg border border-theme hover:bg-white/50 dark:hover:bg-white/10 transition-colors"
+                className="p-4 rounded-xl bg-subtle-bg/50 hover:bg-subtle-bg transition-colors"
               >
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="font-medium">{item.user || 'Anonymous'}</div>
-                    <div className="text-sm text-yellow-600">
-                      {"★".repeat(item.rating)}
-                      <span className="text-muted ml-1">({item.rating}/5)</span>
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white font-semibold text-sm">
+                      {(item.user || 'A').charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="font-medium text-foreground">{item.user || 'Anonymous'}</div>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        {[...Array(5)].map((_, i) => (
+                          <StarFilledIcon 
+                            key={i} 
+                            className={`w-3.5 h-3.5 ${i < item.rating ? 'text-amber-500' : 'text-muted/30'}`} 
+                          />
+                        ))}
+                        <span className="text-xs text-muted ml-1">({item.rating}/5)</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-sm text-muted">
+                  <div className="text-xs text-muted flex items-center gap-1.5">
+                    <CalendarIcon className="h-3 w-3" />
                     {item.createdAt ? new Date(item.createdAt).toLocaleDateString('en-US', {
-                      year: 'numeric',
                       month: 'short',
                       day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
+                      year: 'numeric'
                     }) : 'N/A'}
                   </div>
                 </div>
                 {item.message ? (
-                  <div className="text-sm mt-2 p-2 bg-card rounded border border-theme/60">
+                  <div className="mt-3 p-3 rounded-xl bg-input-bg border border-theme text-sm text-foreground">
                     {item.message}
                   </div>
                 ) : (
-                  <div className="text-muted text-sm mt-2 italic">No feedback message provided</div>
+                  <div className="mt-3 text-sm text-muted italic">No feedback message provided</div>
                 )}
               </div>
             ))
           ) : (
-            <div className="text-center text-muted py-8">No feedback yet</div>
+            <div className="p-12 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
+                <StarFilledIcon className="h-8 w-8 text-amber-500/50" />
+              </div>
+              <p className="text-muted">No feedback yet</p>
+            </div>
           )}
         </div>
-        <div className="flex items-center justify-end gap-3 mt-4">
-          <button
-            className="px-3 py-1.5 rounded-md border border-theme bg-card text-foreground disabled:opacity-50"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-          >
-            Prev
-          </button>
-          <span className="text-sm text-muted">Page {currentPage} / {totalPages}</span>
-          <button
-            className="px-3 py-1.5 rounded-md border border-theme bg-card text-foreground disabled:opacity-50"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
-          >
-            Next
-          </button>
+        
+        {/* Pagination */}
+        <div className="p-4 border-t border-theme bg-subtle-bg/50 flex items-center justify-between">
+          <div className="text-sm text-muted">
+            Showing {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, feedback.length)} of {feedback.length}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              className="p-2 rounded-lg border border-theme bg-card text-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:bg-subtle-bg transition-colors"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeftIcon className="h-4 w-4" />
+            </button>
+            <span className="px-4 py-2 rounded-lg bg-card border border-theme text-sm font-medium">
+              {currentPage} / {totalPages}
+            </span>
+            <button
+              className="p-2 rounded-lg border border-theme bg-card text-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:bg-subtle-bg transition-colors"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronRightIcon className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
 }
-

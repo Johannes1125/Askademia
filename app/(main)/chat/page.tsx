@@ -1358,31 +1358,37 @@ export default function ChatPage() {
   return (
     <div className="flex gap-4 h-[calc(100vh-4rem)] overflow-hidden border border-theme rounded-xl bg-app shadow-xl backdrop-blur-sm">
       {/* Sidebar */}
-      <aside className="w-64 bg-card/50 backdrop-blur-sm border-r border-theme flex flex-col overflow-hidden rounded-l-xl">
-        <div className="p-4 border-b border-theme flex items-center gap-2 bg-card/80 backdrop-blur-sm">
+      <aside className="w-72 bg-gradient-to-b from-card to-card/80 backdrop-blur-sm border-r border-theme flex flex-col overflow-hidden rounded-l-xl">
+        <div className="p-4 border-b border-theme flex items-center gap-2 bg-gradient-to-r from-[var(--brand-yellow)]/10 to-transparent">
           <button
             onClick={createConversation}
-            className="flex-1 flex items-center gap-2 justify-center rounded-lg px-3 py-2.5 text-sm font-semibold transition-all hover:scale-[1.02] active:scale-[0.98] shadow-md hover:shadow-lg"
-            style={{ background: "var(--brand-yellow)", color: "#1f2937" }}
+            className="flex-1 flex items-center gap-2 justify-center rounded-xl px-4 py-3 text-sm font-semibold transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl"
+            style={{ background: "linear-gradient(135deg, var(--brand-yellow), #F59E0B)", color: "#1f2937" }}
           >
-            <PlusIcon /> New Chat
+            <PlusIcon className="h-4 w-4" /> New Chat
           </button>
           <button
             onClick={loadConversations}
             disabled={loadingConversations}
-            className="p-2.5 rounded-lg hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-foreground transition-all hover:scale-110 active:scale-95"
+            className="p-3 rounded-xl bg-subtle-bg border border-theme hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-foreground transition-all hover:scale-105 active:scale-95"
             title="Refresh conversations"
           >
             <ReloadIcon className={`h-4 w-4 ${loadingConversations ? 'animate-spin' : ''}`} />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
           {loadingConversations ? (
-            <div className="text-center text-muted text-sm py-4">Loading conversations...</div>
+            <div className="flex flex-col items-center justify-center py-8">
+              <div className="h-8 w-8 border-2 border-[var(--brand-yellow)] border-t-transparent rounded-full animate-spin mb-3" />
+              <p className="text-sm text-muted">Loading chats...</p>
+            </div>
           ) : conversations.length === 0 ? (
-            <div className="text-center text-muted text-sm py-4">
-              <p>No conversations yet</p>
-              <p className="text-xs mt-1">Start a new chat to begin</p>
+            <div className="text-center py-8 px-4">
+              <div className="w-12 h-12 rounded-2xl bg-[var(--brand-yellow)]/10 flex items-center justify-center mx-auto mb-3">
+                <PlusIcon className="h-6 w-6 text-[var(--brand-yellow)]" />
+              </div>
+              <p className="text-foreground font-medium">No conversations yet</p>
+              <p className="text-xs text-muted mt-1">Start a new chat to begin</p>
             </div>
           ) : (
             conversations.map((c) => {
@@ -1391,17 +1397,19 @@ export default function ChatPage() {
               return (
                 <div
                   key={c.id}
-                  className={`group relative flex items-center rounded-lg transition-all ${
+                  className={`group relative flex items-center rounded-xl transition-all duration-200 ${
                     isActive 
-                      ? "bg-[var(--brand-yellow)]/20 border border-[var(--brand-yellow)]/30 shadow-sm" 
-                      : "hover:bg-white/5 border border-transparent hover:border-theme/50"
+                      ? "bg-gradient-to-r from-[var(--brand-yellow)]/20 to-[var(--brand-yellow)]/5 border-l-2 border-l-[var(--brand-yellow)] shadow-sm" 
+                      : "hover:bg-subtle-bg border-l-2 border-l-transparent hover:border-l-theme"
                   }`}
                 >
                   <button
                     onClick={() => setActiveId(c.id)}
-                    className="flex-1 text-left rounded-lg px-3 py-2.5 text-sm pr-8 truncate text-foreground transition-colors"
+                    className="flex-1 text-left px-3 py-3 pr-8 truncate text-foreground transition-colors"
                   >
-                    <div className="truncate">{c.title || "New Conversation"}</div>
+                    <div className={`truncate font-medium text-sm ${isActive ? 'text-[var(--brand-yellow)]' : ''}`}>
+                      {c.title || "New Conversation"}
+                    </div>
                     {c.messages && c.messages.length > 0 && (
                       <div className="text-xs text-muted mt-0.5">
                         {c.messages.length} message{c.messages.length !== 1 ? 's' : ''}
@@ -1411,7 +1419,7 @@ export default function ChatPage() {
                   {isDatabaseConv && (
                     <button
                       onClick={(e) => openDeleteModal(c.id, e)}
-                      className="absolute right-2 p-1.5 rounded hover:bg-red-500/20 text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute right-2 p-1.5 rounded-lg hover:bg-red-500/20 text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
                       title="Delete conversation"
                     >
                       <TrashIcon className="h-3.5 w-3.5" />
@@ -1427,10 +1435,15 @@ export default function ChatPage() {
       {/* Messages Container */}
       <div className="flex-1 flex flex-col overflow-hidden min-h-0 bg-app/50 backdrop-blur-sm rounded-r-xl">
         {/* Header */}
-        <div className="h-14 flex-shrink-0 border-b border-theme px-6 flex items-center justify-between text-foreground bg-card/50 backdrop-blur-sm">
-          <span>
-            {loadingConversations ? "Loading..." : (active ? (active.messages.length === 0 ? "New Conversation" : active.title) : "No conversation selected")}
-          </span>
+        <div className="h-16 flex-shrink-0 border-b border-theme px-6 flex items-center justify-between text-foreground bg-gradient-to-r from-card/80 to-card/50 backdrop-blur-sm">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[var(--brand-blue)] to-indigo-600 flex items-center justify-center">
+              <PaperPlaneIcon className="h-4 w-4 text-white" />
+            </div>
+            <span className="font-semibold truncate max-w-[300px]">
+              {loadingConversations ? "Loading..." : (active ? (active.messages.length === 0 ? "New Conversation" : active.title) : "No conversation selected")}
+            </span>
+          </div>
           <div className="flex items-center gap-3">
             {/* Language Selector */}
             <div className="relative">
@@ -1859,19 +1872,24 @@ export default function ChatPage() {
       {mounted && (
         <Dialog.Root open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
           <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md rounded-xl bg-white p-6 shadow-xl z-50 border border-gray-200">
-            <Dialog.Title className="text-lg font-semibold text-black mb-2">
-              Delete Conversation
-            </Dialog.Title>
-            <Dialog.Description className="text-sm text-black mb-6">
+          <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md rounded-2xl bg-card p-6 shadow-2xl z-50 border border-theme animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
+                <TrashIcon className="h-5 w-5 text-red-400" />
+              </div>
+              <Dialog.Title className="text-lg font-semibold text-foreground">
+                Delete Conversation
+              </Dialog.Title>
+            </div>
+            <Dialog.Description className="text-sm text-muted mb-6">
               Are you sure you want to delete this conversation? This action cannot be undone and all messages will be permanently deleted.
             </Dialog.Description>
             <div className="flex gap-3 justify-end">
               <Dialog.Close asChild>
                 <button
                   disabled={deleting}
-                  className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white text-black hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-5 py-2.5 text-sm font-medium rounded-xl border border-theme bg-card text-foreground hover:bg-subtle-bg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
@@ -1879,7 +1897,7 @@ export default function ChatPage() {
               <button
                 onClick={confirmDeleteConversation}
                 disabled={deleting}
-                className="px-4 py-2 text-sm font-medium rounded-lg text-black transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed bg-red-600 hover:bg-red-700"
+                className="px-5 py-2.5 text-sm font-medium rounded-xl text-white transition-all hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-red-500 to-red-600 shadow-lg shadow-red-500/25"
               >
                 {deleting ? "Deleting..." : "Delete"}
               </button>
