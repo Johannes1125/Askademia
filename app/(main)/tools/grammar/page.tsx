@@ -1,9 +1,10 @@
-// Grammar & Plagiarism Tool Page
+// Grammar Tool Page
 "use client";
 
-import { useState, useEffect, ReactNode } from "react";
+import { useState, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { toast } from "react-toastify";
+import { CheckCircledIcon, Cross2Icon, ExclamationTriangleIcon, InfoCircledIcon } from "@radix-ui/react-icons";
 
 type GrammarIssue = {
   type: string;
@@ -18,49 +19,15 @@ type GrammarResult = {
   summary: string;
 };
 
-type PlagiarismMatch = {
-  id: string;
-  sourceId: string;
-  sourceTitle: string;
-  sourceUrl: string;
-  snippet: string;
-  matchedText: string;
-  start: number;
-  end: number;
-  overlapRatio: number;
-};
-
-type PlagiarismSourceSummary = {
-  id: string;
-  title: string;
-  url: string;
-  matchCount: number;
-  totalOverlap: number;
-};
-
-type PlagiarismResult = {
-  similarity: number;
-  risk: string;
-  recommendations: string[];
-  summary: string;
-  matches?: PlagiarismMatch[];
-  sources?: PlagiarismSourceSummary[];
-};
-
-export default function GrammarPlagiarismPage() {
+export default function GrammarPage() {
   const [text, setText] = useState("");
   const [grammarScore, setGrammarScore] = useState<number | null>(null);
-  const [plagiarismScore, setPlagiarismScore] = useState<number | null>(null);
   const [issues, setIssues] = useState<GrammarIssue[]>([]);
   const [checkingGrammar, setCheckingGrammar] = useState(false);
-  const [checkingPlagiarism, setCheckingPlagiarism] = useState(false);
   const [grammarResult, setGrammarResult] = useState<GrammarResult | null>(null);
-  const [plagiarismResult, setPlagiarismResult] = useState<PlagiarismResult | null>(null);
-  const [plagiarismMatches, setPlagiarismMatches] = useState<PlagiarismMatch[]>([]);
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  // Ensure Dialog only renders on client to avoid hydration mismatch
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -75,9 +42,7 @@ export default function GrammarPlagiarismPage() {
     try {
       const response = await fetch("/api/grammar/check", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
       });
 
@@ -99,284 +64,260 @@ export default function GrammarPlagiarismPage() {
     }
   };
 
-  const handleCheckPlagiarism = async () => {
-    if (!text.trim()) {
-      toast.error("Please enter some text to check");
-      return;
-    }
-
-    setCheckingPlagiarism(true);
-    try {
-      const response = await fetch("/api/plagiarism/check", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ text }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to check plagiarism");
-      }
-
-      setPlagiarismResult(data);
-      setPlagiarismMatches(data.matches || []);
-      // Calculate plagiarism score (100 - similarity, so lower similarity = higher score)
-      const score = Math.max(0, 100 - data.similarity);
-      setPlagiarismScore(score);
-      toast.success("Plagiarism check completed");
-    } catch (error: any) {
-      console.error("Error checking plagiarism:", error);
-      toast.error(error.message || "Failed to check plagiarism");
-    } finally {
-      setCheckingPlagiarism(false);
-    }
-  };
-
   const getScoreColor = (score: number) => {
-    if (score >= 80) return "bg-emerald-500/20 text-emerald-300 border-emerald-400/30";
-    if (score >= 60) return "bg-yellow-500/20 text-yellow-300 border-yellow-400/30";
-    return "bg-red-500/20 text-red-300 border-red-400/30";
+    if (score >= 80) return "from-emerald-500 to-emerald-600";
+    if (score >= 60) return "from-yellow-500 to-orange-500";
+    return "from-red-500 to-red-600";
   };
 
-  const getPlagiarismScoreColor = (score: number) => {
-    // For plagiarism, higher score (lower similarity) is better
-    if (score >= 90) return "bg-emerald-500/20 text-emerald-300 border-emerald-400/30";
-    if (score >= 70) return "bg-yellow-500/20 text-yellow-300 border-yellow-400/30";
-    return "bg-red-500/20 text-red-300 border-red-400/30";
+  const getScoreBg = (score: number) => {
+    if (score >= 80) return "bg-emerald-500/10 border-emerald-500/30";
+    if (score >= 60) return "bg-yellow-500/10 border-yellow-500/30";
+    return "bg-red-500/10 border-red-500/30";
   };
 
-  const renderHighlightedText = () => {
-    if (!text.trim()) {
-      return <span className="text-muted">Type or paste text to see highlighted overlaps.</span>;
-    }
-    if (plagiarismMatches.length === 0) {
-      return <span className="text-muted">No overlapping passages detected yet.</span>;
-    }
-    const ordered = [...plagiarismMatches].sort((a, b) => a.start - b.start);
-    const nodes: ReactNode[] = [];
-    let cursor = 0;
-    ordered.forEach((match) => {
-      if (match.start > cursor) {
-        nodes.push(
-          <span key={`plain-${cursor}`} className="text-foreground">
-            {text.slice(cursor, match.start)}
-          </span>
-        );
-      }
-      nodes.push(
-        <span
-          key={`match-${match.id}`}
-          className="bg-red-500/30 text-foreground rounded px-1 py-0.5 inline-flex flex-wrap gap-1 items-baseline"
-        >
-          <span>{text.slice(match.start, match.end)}</span>
-          <span className="text-[10px] uppercase tracking-wide text-red-100">
-            {match.sourceTitle}
-          </span>
-        </span>
-      );
-      cursor = match.end;
-    });
-    if (cursor < text.length) {
-      nodes.push(
-        <span key={`tail-${cursor}`} className="text-foreground">
-          {text.slice(cursor)}
-        </span>
-      );
-    }
-    return nodes;
+  const getScoreLabel = (score: number) => {
+    if (score >= 90) return "Excellent";
+    if (score >= 80) return "Great";
+    if (score >= 70) return "Good";
+    if (score >= 60) return "Fair";
+    return "Needs Work";
   };
+
+  const getSeverityIcon = (severity: string) => {
+    switch (severity.toLowerCase()) {
+      case 'error':
+        return <Cross2Icon className="h-4 w-4 text-red-400" />;
+      case 'warning':
+        return <ExclamationTriangleIcon className="h-4 w-4 text-yellow-400" />;
+      default:
+        return <InfoCircledIcon className="h-4 w-4 text-blue-400" />;
+    }
+  };
+
+  const getSeverityBg = (severity: string) => {
+    switch (severity.toLowerCase()) {
+      case 'error':
+        return 'bg-red-500/10 border-red-500/20';
+      case 'warning':
+        return 'bg-yellow-500/10 border-yellow-500/20';
+      default:
+        return 'bg-blue-500/10 border-blue-500/20';
+    }
+  };
+
+  const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+  const charCount = text.length;
 
   return (
-    <div className="h-full grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
-      {/* Left: sidebar-like panel */}
-      <aside className="card bg-[#11161d] border-white/10 text-foreground p-4 space-y-4">
-        <div>
-          <div className="text-xs text-muted mb-1">Grammar Score</div>
-          <div className={`inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium border ${
-            grammarScore !== null ? getScoreColor(grammarScore) : "bg-emerald-500/20 text-emerald-300 border-emerald-400/30"
-          }`}>
-            {grammarScore !== null ? `${grammarScore} / 100` : "— / 100"}
-          </div>
-        </div>
-        <div>
-          <div className="text-xs text-muted mb-1">Plagiarism Score</div>
-          <div className={`inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium border ${
-            plagiarismScore !== null ? getPlagiarismScoreColor(plagiarismScore) : "bg-emerald-500/20 text-emerald-300 border-emerald-400/30"
-          }`}>
-            {plagiarismScore !== null ? `${plagiarismScore} / 100` : "— / 100"}
-          </div>
-        </div>
-        <div className="space-y-2">
-          <button
-            type="button"
-            className="w-full px-3 py-2 rounded-md text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-            style={{ background: "var(--brand-blue)" }}
-            onClick={handleCheckGrammar}
-            disabled={checkingGrammar || !text.trim()}
-          >
-            {checkingGrammar ? "Checking..." : "Check Grammar"}
-          </button>
-          <button
-            type="button"
-            className="w-full px-3 py-2 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-            style={{ background: "var(--brand-yellow)", color: "#1f2937" }}
-            onClick={handleCheckPlagiarism}
-            disabled={checkingPlagiarism || !text.trim()}
-          >
-            {checkingPlagiarism ? "Checking..." : "Check Plagiarism"}
-          </button>
-        </div>
-        {plagiarismResult?.sources && plagiarismResult.sources.length > 0 && (
-          <div>
-            <div className="text-xs text-muted mb-1">Flagged Sources</div>
-            <div className="space-y-2">
-              {plagiarismResult.sources.map((source) => (
-                <a
-                  key={source.id}
-                  href={source.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block rounded-lg border border-theme bg-card px-3 py-2 hover:border-[var(--brand-blue)] transition-colors"
-                >
-                  <div className="text-sm font-medium text-foreground">{source.title}</div>
-                  <div className="text-[11px] text-muted truncate">{source.url}</div>
-                  <div className="text-[11px] text-muted mt-1">
-                    {source.matchCount} match{source.matchCount > 1 ? "es" : ""} •{" "}
-                    {Math.round(source.totalOverlap)} chars overlap
+    <div className="h-full flex flex-col lg:flex-row gap-5">
+      {/* Left Panel */}
+      <aside className="lg:w-[320px] flex-shrink-0 space-y-5">
+        {/* Score Card */}
+        <div className="bg-card border border-theme rounded-2xl p-5 overflow-hidden relative">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[var(--brand-blue)]/10 to-transparent rounded-full -translate-y-1/2 translate-x-1/2" />
+          
+          <h3 className="text-sm font-medium text-muted mb-4">Grammar Score</h3>
+          
+          <div className="flex items-center gap-4">
+            <div className={`relative w-20 h-20 rounded-2xl border-2 flex items-center justify-center ${
+              grammarScore !== null ? getScoreBg(grammarScore) : 'bg-subtle-bg border-theme'
+            }`}>
+              {grammarScore !== null ? (
+                <div className="text-center">
+                  <div className={`text-2xl font-bold bg-gradient-to-r ${getScoreColor(grammarScore)} bg-clip-text text-transparent`}>
+                    {grammarScore}
                   </div>
-                </a>
-              ))}
+                  <div className="text-[10px] text-muted">/ 100</div>
+                </div>
+              ) : (
+                <div className="text-2xl font-bold text-muted">—</div>
+              )}
+            </div>
+            
+            <div className="flex-1">
+              {grammarScore !== null ? (
+                <>
+                  <div className={`text-lg font-semibold bg-gradient-to-r ${getScoreColor(grammarScore)} bg-clip-text text-transparent`}>
+                    {getScoreLabel(grammarScore)}
+                  </div>
+                  <div className="text-xs text-muted mt-1">
+                    {issues.length === 0 ? "No issues found!" : `${issues.length} issue${issues.length > 1 ? 's' : ''} found`}
+                  </div>
+                </>
+              ) : (
+                <div className="text-sm text-muted">
+                  Enter text and click check to get your score
+                </div>
+              )}
             </div>
           </div>
-        )}
-        <div>
-          <div className="text-xs text-muted mb-2">
-            Issues {issues.length > 0 && `(${issues.length})`}
-          </div>
-          {issues.length > 0 ? (
-            <ul className="text-sm space-y-1.5 mb-3">
-              {issues.map((issue, idx) => (
-                <li key={idx} className="flex items-start gap-2">
-                  <span className="text-muted mt-0.5">•</span>
-                  <span className="text-foreground">{issue.message}</span>
-                </li>
-              ))}
-            </ul>
+        </div>
+
+        {/* Check Button */}
+        <button
+          type="button"
+          className="w-full px-5 py-3.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-[var(--brand-blue)]/25 flex items-center justify-center gap-2"
+          style={{ background: "linear-gradient(135deg, var(--brand-blue), #4F46E5)" }}
+          onClick={handleCheckGrammar}
+          disabled={checkingGrammar || !text.trim()}
+        >
+          {checkingGrammar ? (
+            <>
+              <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Analyzing...
+            </>
           ) : (
-            <div className="text-sm text-muted mb-3">
-              {grammarScore !== null ? "No issues found" : "No issues detected yet"}
+            <>
+              <CheckCircledIcon className="h-4 w-4" />
+              Check Grammar
+            </>
+          )}
+        </button>
+
+        {/* Issues Section */}
+        <div className="bg-card border border-theme rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-medium text-muted">Issues</h3>
+            {issues.length > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">
+                {issues.length}
+              </span>
+            )}
+          </div>
+          
+          {issues.length > 0 ? (
+            <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
+              {issues.map((issue, idx) => (
+                <div key={idx} className={`p-3 rounded-xl border ${getSeverityBg(issue.severity)}`}>
+                  <div className="flex items-start gap-2">
+                    {getSeverityIcon(issue.severity)}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-foreground leading-relaxed">{issue.message}</p>
+                      <p className="text-xs text-muted mt-1.5 capitalize">{issue.type.replace(/_/g, ' ')}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="py-8 text-center">
+              <div className="w-12 h-12 rounded-full bg-subtle-bg border border-dashed border-theme flex items-center justify-center mx-auto mb-3">
+                <CheckCircledIcon className="h-6 w-6 text-muted" />
+              </div>
+              <p className="text-sm text-muted">
+                {grammarScore !== null ? "No issues found! 🎉" : "No issues detected yet"}
+              </p>
             </div>
           )}
-          {mounted ? (
-            <Dialog.Root open={reportModalOpen} onOpenChange={setReportModalOpen}>
-              <Dialog.Trigger asChild>
-                <button className="w-full px-3 py-2 rounded-md border border-theme hover:bg-black/5 transition-colors text-sm text-foreground">
-                  View Report
-                </button>
-              </Dialog.Trigger>
-              <Dialog.Portal>
-              <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
-              <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-xl rounded-xl bg-card p-6 shadow-xl z-50 border border-theme text-foreground">
-                <Dialog.Title className="text-lg font-semibold text-foreground mb-4">
-                  Detailed Report
-                </Dialog.Title>
-                <div className="space-y-4 text-sm">
-                  {grammarResult && (
-                    <div className="border-b border-theme pb-4">
-                      <h3 className="font-semibold text-foreground mb-2">Grammar Check</h3>
-                      <div className="space-y-1 text-foreground">
-                        <div>Score: <span className="font-medium">{grammarResult.score} / 100</span></div>
-                        {grammarResult.summary && (
-                          <div className="mt-2 text-muted">{grammarResult.summary}</div>
-                        )}
-                        {grammarResult.suggestions && grammarResult.suggestions.length > 0 && (
-                          <div className="mt-2">
-                            <div className="font-medium mb-1">Suggestions:</div>
-                            <ul className="list-disc list-inside space-y-1">
-                              {grammarResult.suggestions.map((suggestion, idx) => (
-                                <li key={idx}>{suggestion}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  {plagiarismResult && (
-                    <div>
-                      <h3 className="font-semibold text-foreground mb-2">Plagiarism Check</h3>
-                      <div className="space-y-1 text-foreground">
-                        <div>Similarity: <span className="font-medium">{plagiarismResult.similarity}%</span></div>
-                        <div>Risk Level: <span className="font-medium capitalize">{plagiarismResult.risk}</span></div>
-                        {plagiarismResult.summary && (
-                          <div className="mt-2 text-muted">{plagiarismResult.summary}</div>
-                        )}
-                        {plagiarismResult.recommendations && plagiarismResult.recommendations.length > 0 && (
-                          <div className="mt-2">
-                            <div className="font-medium mb-1">Recommendations:</div>
-                            <ul className="list-disc list-inside space-y-1">
-                              {plagiarismResult.recommendations.map((rec, idx) => (
-                                <li key={idx}>{rec}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  {!grammarResult && !plagiarismResult && (
-                    <div className="text-muted">
-                      Run grammar and plagiarism checks to see the full report.
-                    </div>
-                  )}
-                </div>
-                <div className="mt-6 text-right">
+        </div>
+
+        {/* View Report Button */}
+        {mounted && (
+          <Dialog.Root open={reportModalOpen} onOpenChange={setReportModalOpen}>
+            <Dialog.Trigger asChild>
+              <button className="w-full px-5 py-3 rounded-xl border border-theme bg-card hover:bg-subtle-bg transition-all text-sm font-medium text-foreground flex items-center justify-center gap-2">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                View Full Report
+              </button>
+            </Dialog.Trigger>
+            <Dialog.Portal>
+              <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" />
+              <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-lg rounded-2xl bg-card p-6 shadow-2xl z-50 border border-theme">
+                <div className="flex items-center justify-between mb-5">
+                  <Dialog.Title className="text-lg font-semibold text-foreground">
+                    Grammar Report
+                  </Dialog.Title>
                   <Dialog.Close asChild>
-                    <button className="px-4 py-2 rounded-lg border border-theme bg-card text-foreground hover:bg-white/5 transition-colors">
-                      Close
+                    <button className="p-1.5 rounded-lg hover:bg-subtle-bg text-muted hover:text-foreground transition-all">
+                      <Cross2Icon className="h-4 w-4" />
                     </button>
                   </Dialog.Close>
                 </div>
+                
+                {grammarResult ? (
+                  <div className="space-y-5">
+                    <div className="flex items-center gap-4 p-4 rounded-xl bg-subtle-bg border border-theme">
+                      <div className={`w-16 h-16 rounded-xl border-2 flex items-center justify-center ${getScoreBg(grammarResult.score)}`}>
+                        <span className={`text-2xl font-bold bg-gradient-to-r ${getScoreColor(grammarResult.score)} bg-clip-text text-transparent`}>
+                          {grammarResult.score}
+                        </span>
+                      </div>
+                      <div>
+                        <div className={`text-lg font-semibold bg-gradient-to-r ${getScoreColor(grammarResult.score)} bg-clip-text text-transparent`}>
+                          {getScoreLabel(grammarResult.score)}
+                        </div>
+                        <div className="text-sm text-muted">
+                          {grammarResult.issues?.length || 0} issues • {wordCount} words
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {grammarResult.summary && (
+                      <div>
+                        <h4 className="text-sm font-medium text-foreground mb-2">Summary</h4>
+                        <p className="text-sm text-muted p-3 rounded-xl bg-subtle-bg border border-theme">
+                          {grammarResult.summary}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {grammarResult.suggestions && grammarResult.suggestions.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium text-foreground mb-2">Suggestions</h4>
+                        <div className="space-y-2">
+                          {grammarResult.suggestions.map((suggestion, idx) => (
+                            <div key={idx} className="flex items-start gap-2 p-3 rounded-xl bg-[var(--brand-blue)]/10 border border-[var(--brand-blue)]/20">
+                              <span className="text-[var(--brand-blue)]">💡</span>
+                              <span className="text-sm text-foreground">{suggestion}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 rounded-full bg-subtle-bg border border-dashed border-theme flex items-center justify-center mx-auto mb-4">
+                      <CheckCircledIcon className="h-8 w-8 text-muted" />
+                    </div>
+                    <p className="text-muted">Run a grammar check to see the full report.</p>
+                  </div>
+                )}
               </Dialog.Content>
             </Dialog.Portal>
           </Dialog.Root>
-          ) : (
-            <button 
-              onClick={() => setReportModalOpen(true)}
-              className="w-full px-3 py-2 rounded-md border border-black/10 hover:bg-black/5 transition-colors text-sm text-black"
-            >
-              View Report
-            </button>
-          )}
-        </div>
+        )}
       </aside>
 
-      {/* Right: editor */}
-      <div className="card bg-[#11161d] border-white/10 text-foreground p-4 flex flex-col">
+      {/* Right Panel - Editor */}
+      <div className="flex-1 flex flex-col bg-card border border-theme rounded-2xl overflow-hidden">
+        {/* Editor Header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-theme bg-subtle-bg/50">
+          <span className="text-sm font-medium text-foreground">Text Editor</span>
+          <div className="flex items-center gap-4 text-xs text-muted">
+            <span>{wordCount} words</span>
+            <span>{charCount} characters</span>
+          </div>
+        </div>
+        
+        {/* Textarea */}
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          className="flex-1 min-h-[400px] rounded-lg bg-[#0f1218] border border-black/10 p-3 text-sm resize-none outline-none focus:border-black/20 text-foreground placeholder:placeholder-muted"
-          placeholder="Paste or type text to check..."
+          className="flex-1 min-h-[400px] p-5 text-sm resize-none outline-none bg-transparent text-foreground placeholder:text-muted leading-relaxed"
+          placeholder="Paste or type your text here to check for grammar issues..."
         />
-        {plagiarismMatches.length > 0 && (
-          <div className="mt-6">
-            <div className="text-xs text-muted uppercase tracking-wide mb-2">Plagiarism highlights</div>
-            <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 text-sm leading-relaxed whitespace-pre-wrap">
-              {renderHighlightedText()}
-            </div>
-            <div className="mt-2 text-xs text-muted">
-              Highlighted passages overlap with known sources. Rephrase or cite appropriately.
-            </div>
-          </div>
-        )}
-        <div className="mt-3 text-xs text-muted">Askademia can make mistakes. Verify important info.</div>
+        
+        {/* Footer */}
+        <div className="px-5 py-3 border-t border-theme bg-subtle-bg/30">
+          <p className="text-xs text-muted">
+            💡 Tip: For best results, check paragraphs at a time rather than entire documents.
+          </p>
+        </div>
       </div>
     </div>
   );
 }
-
-

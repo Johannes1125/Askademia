@@ -5,49 +5,100 @@ import {
   ChatBubbleIcon,
   ReaderIcon,
   CheckCircledIcon,
-  ArchiveIcon,
+  FileTextIcon,
+  RocketIcon,
+  ArrowRightIcon,
+  LightningBoltIcon,
 } from "@radix-ui/react-icons";
 import Link from "next/link";
 import { useMemo } from "react";
 import useSWR from "swr";
 import { createClient } from "@/lib/supabase/client";
 
-function StatCard({ title, value, delta, icon, accent }: { title: string; value: string; delta: string; icon: React.ReactNode; accent: "yellow" | "blue" | "green" | "orange" }) {
-  const accentBg =
-    accent === "yellow"
-      ? "bg-[var(--brand-yellow)]"
-      : accent === "blue"
-      ? "bg-[var(--brand-blue)]"
-      : accent === "green"
-      ? "bg-emerald-500"
-      : "bg-orange-500";
+function StatCard({ 
+  title, 
+  value, 
+  delta, 
+  icon, 
+  gradient 
+}: { 
+  title: string; 
+  value: string; 
+  delta: string; 
+  icon: React.ReactNode; 
+  gradient: string;
+}) {
   return (
-    <div className="card p-5 sm:p-6 bg-card text-foreground border-theme hover:shadow-lg transition-shadow">
-      <div className="flex items-start justify-between gap-3">
+    <div className="group relative bg-card border border-theme rounded-2xl p-5 hover:border-white/20 transition-all duration-300 overflow-hidden">
+      {/* Background gradient on hover */}
+      <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ${gradient}`} />
+      
+      <div className="relative flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <div className="text-xs sm:text-sm text-muted truncate uppercase tracking-wide font-semibold">{title}</div>
-          <div className="mt-2 sm:mt-3 text-2xl sm:text-3xl font-bold text-foreground">{value}</div>
-          <div className="mt-1 sm:mt-2 text-xs text-emerald-500 font-medium">{delta}</div>
+          <div className="text-xs text-muted uppercase tracking-wider font-medium mb-3">{title}</div>
+          <div className="text-3xl font-bold text-foreground mb-1">{value}</div>
+          <div className="inline-flex items-center gap-1 text-xs font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+            {delta}
+          </div>
         </div>
-        <div className={`h-11 w-11 sm:h-12 sm:w-12 shrink-0 grid place-items-center rounded-lg ${accentBg}`} style={{ color: 'var(--card)' }}>{icon}</div>
+        <div className={`h-12 w-12 shrink-0 grid place-items-center rounded-xl ${gradient} shadow-lg`}>
+          <span className="text-white">{icon}</span>
+        </div>
       </div>
     </div>
   );
 }
 
-function UsageBar({ label, value }: { label: string; value: number }) {
+function UsageBar({ label, value, delay }: { label: string; value: number; delay: number }) {
   return (
-    <div className="text-sm">
-      <div className="flex justify-between mb-2 text-foreground font-medium">
-        <span>{label}</span>
-        <span className="text-muted text-xs">{value}%</span>
+    <div className="group">
+      <div className="flex justify-between mb-2">
+        <span className="text-sm font-medium text-foreground">{label}</span>
+        <span className="text-sm font-semibold text-foreground">{value}%</span>
       </div>
-      <div className="h-2.5 rounded-full subtle-bg overflow-hidden border border-theme">
-        <div className="h-full" style={{ width: `${value}%`, background: "linear-gradient(90deg, var(--brand-yellow), var(--brand-blue))" }} />
+      <div className="h-2 rounded-full bg-subtle-bg overflow-hidden">
+        <div 
+          className="h-full rounded-full transition-all duration-1000 ease-out"
+          style={{ 
+            width: `${value}%`, 
+            background: "linear-gradient(90deg, #3B82F6, #8B5CF6, #EC4899)",
+            animationDelay: `${delay}ms`
+          }} 
+        />
       </div>
     </div>
   );
 }
+
+function ToolCard({ href, label, icon, description, color }: { 
+  href: string; 
+  label: string; 
+  icon: React.ReactNode;
+  description: string;
+  color: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group relative bg-card border border-theme rounded-2xl p-6 hover:border-white/20 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer"
+    >
+      <div className={`absolute top-0 right-0 w-32 h-32 ${color} opacity-10 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform duration-500`} />
+      
+      <div className="relative flex flex-col items-center text-center">
+        <div className={`h-12 w-12 grid place-items-center rounded-xl ${color} shadow-lg mb-4 group-hover:scale-110 transition-transform duration-300`}>
+          <span className="text-white">{icon}</span>
+        </div>
+        <div className="text-base font-semibold text-foreground mb-1 group-hover:text-[var(--brand-blue)] transition-colors">{label}</div>
+        <div className="text-xs text-muted">{description}</div>
+      </div>
+    </Link>
+  );
+}
+
+const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export default function DashboardPage() {
   const supabase = createClient();
@@ -66,73 +117,147 @@ export default function DashboardPage() {
     return Array.isArray(data) ? data[0] : data;
   }, { revalidateOnFocus: false });
 
+  // Fetch weekly activity data
+  const { data: weeklyData } = useSWR('/api/stats/weekly', fetcher, { revalidateOnFocus: false });
+
   const fmt = (n?: number) => (typeof n === 'number' ? n.toLocaleString() : '0');
   const pct = (part?: number, total?: number) => {
-    if (!part || !total || total === 0) return '+0% this month';
+    if (!part || !total || total === 0) return '+0%';
     const p = Math.round((part / total) * 100);
-    return `+${p}% this month`;
+    return `+${p}%`;
   };
 
+  // Get current day for weekly usage
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const today = new Date().getDay();
+  const todayName = days[today];
+
   return (
-    <div className="space-y-8">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Total Queries" value={fmt(allTime?.prompts)} delta={pct(thisMonth?.prompts, allTime?.prompts)} icon={<ChatBubbleIcon />} accent="yellow" />
-        <StatCard title="Conversations" value={fmt(allTime?.conversations)} delta={pct(thisMonth?.conversations, allTime?.conversations)} icon={<ReaderIcon />} accent="blue" />
-        <StatCard title="Citations Created" value={fmt(allTime?.citations)} delta={pct(thisMonth?.citations, allTime?.citations)} icon={<CheckCircledIcon />} accent="green" />
-        <StatCard title="Documents Checked" value="0" delta="+0% this month" icon={<ArchiveIcon />} accent="orange" />
+    <div className="space-y-6">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard 
+          title="Total Queries" 
+          value={fmt(allTime?.prompts)} 
+          delta={pct(thisMonth?.prompts, allTime?.prompts)} 
+          icon={<ChatBubbleIcon className="h-5 w-5" />} 
+          gradient="bg-gradient-to-br from-amber-400 to-orange-500" 
+        />
+        <StatCard 
+          title="Conversations" 
+          value={fmt(allTime?.conversations)} 
+          delta={pct(thisMonth?.conversations, allTime?.conversations)} 
+          icon={<ReaderIcon className="h-5 w-5" />} 
+          gradient="bg-gradient-to-br from-blue-500 to-indigo-600" 
+        />
+        <StatCard 
+          title="Citations" 
+          value={fmt(allTime?.citations)} 
+          delta={pct(thisMonth?.citations, allTime?.citations)} 
+          icon={<CheckCircledIcon className="h-5 w-5" />} 
+          gradient="bg-gradient-to-br from-emerald-400 to-teal-500" 
+        />
+        <StatCard 
+          title="Grammar Checks" 
+          value="0" 
+          delta="+0%" 
+          icon={<FileTextIcon className="h-5 w-5" />} 
+          gradient="bg-gradient-to-br from-rose-400 to-pink-500" 
+        />
       </div>
 
+      {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 card p-6 sm:p-7 bg-card border-theme text-foreground hover:shadow-lg transition-shadow">
-          <h2 className="text-lg sm:text-xl font-bold mb-1">Quick Access Tools</h2>
-          <p className="text-xs sm:text-sm text-muted mb-5 sm:mb-6">Get started with your most-used features</p>
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            <ToolCard href="/chat" label="Start Chat" icon={<ChatBubbleIcon />} />
-            <ToolCard href="/tools/citation" label="Create Citation" icon={<ReaderIcon />} />
-            <ToolCard href="/tools/grammar" label="Grammar Check" icon={<CheckCircledIcon />} />
-            <ToolCard href="/tools/grammar" label="Check Content" icon={<ArchiveIcon />} />
+        {/* Quick Access Tools */}
+        <div className="lg:col-span-2 bg-card border border-theme rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                <LightningBoltIcon className="h-5 w-5 text-[var(--brand-yellow)]" />
+                Quick Access
+              </h2>
+              <p className="text-xs text-muted mt-1">Jump into your favorite tools</p>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <ToolCard 
+              href="/chat" 
+              label="AI Chat" 
+              icon={<ChatBubbleIcon className="h-5 w-5" />}
+              description="Research assistant"
+              color="bg-gradient-to-br from-blue-500 to-indigo-600"
+            />
+            <ToolCard 
+              href="/citations" 
+              label="Citations" 
+              icon={<ReaderIcon className="h-5 w-5" />}
+              description="Generate references"
+              color="bg-gradient-to-br from-emerald-400 to-teal-500"
+            />
+            <ToolCard 
+              href="/tools/grammar" 
+              label="Grammar Check" 
+              icon={<CheckCircledIcon className="h-5 w-5" />}
+              description="Improve your writing"
+              color="bg-gradient-to-br from-purple-500 to-pink-500"
+            />
+            <ToolCard 
+              href="/tools/questions" 
+              label="Question Generator" 
+              icon={<FileTextIcon className="h-5 w-5" />}
+              description="Create survey questions"
+              color="bg-gradient-to-br from-amber-400 to-orange-500"
+            />
           </div>
         </div>
-        <div className="card p-6 sm:p-7 bg-card border-theme text-foreground hover:shadow-lg transition-shadow">
-          <h2 className="text-lg sm:text-xl font-bold mb-5 sm:mb-6">Weekly Usage</h2>
-          <div className="space-y-3.5">
-            <UsageBar label="Mon" value={92} />
-            <UsageBar label="Tue" value={94} />
-            <UsageBar label="Wed" value={53} />
-            <UsageBar label="Thu" value={66} />
-            <UsageBar label="Fri" value={82} />
+
+        {/* Weekly Activity */}
+        <div className="bg-card border border-theme rounded-2xl p-6">
+          <h2 className="text-lg font-bold text-foreground mb-2">This Week</h2>
+          <p className="text-xs text-muted mb-6">Your daily activity (messages + citations)</p>
+          
+          <div className="space-y-5">
+            {(weeklyData?.daily || []).slice(0, 5).map((dayData: { day: string; count: number; percentage: number }) => {
+              const isToday = todayName === dayData.day;
+              return (
+                <div key={dayData.day} className={`${isToday ? 'opacity-100' : 'opacity-70'}`}>
+                  <div className="flex justify-between mb-2">
+                    <span className={`text-sm font-medium ${isToday ? 'text-[var(--brand-blue)]' : 'text-foreground'}`}>
+                      {dayData.day} {isToday && <span className="text-xs text-muted ml-1">(Today)</span>}
+                    </span>
+                    <span className="text-sm font-semibold text-foreground">{dayData.count} items</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-subtle-bg overflow-hidden">
+                    <div 
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ 
+                        width: `${Math.max(dayData.percentage, 5)}%`, 
+                        background: isToday 
+                          ? "linear-gradient(90deg, var(--brand-blue), #8B5CF6)" 
+                          : "linear-gradient(90deg, #64748B, #94A3B8)"
+                      }} 
+                    />
+                  </div>
+                </div>
+              );
+            })}
+            {!weeklyData?.daily && (
+              <div className="text-center py-4 text-muted text-sm">Loading activity...</div>
+            )}
+            {weeklyData?.daily?.length === 0 && (
+              <div className="text-center py-4 text-muted text-sm">No activity this week</div>
+            )}
+          </div>
+          
+          <div className="mt-6 pt-5 border-t border-theme">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted">Weekly Total</span>
+              <span className="font-bold text-foreground">{weeklyData?.total || 0} items</span>
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
-function LinkButton({ href, label }: { href: string; label: string }) {
-  return (
-    <a
-      href={href}
-      className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-white"
-      style={{ background: "var(--brand-blue)" }}
-    >
-      {label}
-    </a>
-  );
-}
-
-function ToolCard({ href, label, icon }: { href: string; label: string; icon: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className="rounded-lg border border-theme bg-card p-5 sm:p-6 flex flex-col items-center justify-center text-center hover:shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-2"
-      style={{ '--ring-offset-color': 'var(--app-bg)' } as any}
-    >
-      <div className="h-9 w-9 sm:h-10 sm:w-10 grid place-items-center rounded-lg mb-2.5 sm:mb-3" style={{ background: 'color-mix(in oklab, var(--foreground) 12%, transparent)', color: 'var(--primary)' }}>
-        {icon}
-      </div>
-      <div className="text-xs sm:text-sm font-semibold text-foreground">{label}</div>
-    </Link>
-  );
-}
-
-

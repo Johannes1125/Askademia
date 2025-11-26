@@ -2,13 +2,13 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { CopyIcon, CheckIcon, TrashIcon, DownloadIcon, BookmarkIcon } from '@radix-ui/react-icons';
+import { CopyIcon, CheckIcon, TrashIcon, DownloadIcon, BookmarkIcon, Link2Icon, FileTextIcon, PlusIcon } from '@radix-ui/react-icons';
 import { jsPDF } from 'jspdf';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
 import { WorkspaceQuickAddButton } from '@/components/workspace/QuickAdd';
 
-type Format = 'APA' | 'MLA' | 'Chicago' | 'Harvard' | 'IEEE';
+type Format = 'APA' | 'MLA' | 'Chicago' | 'IEEE';
 
 type CitationItem = {
   id?: string;
@@ -29,9 +29,8 @@ export default function CitationsPage() {
   const [loading, setLoading] = useState(false);
   const [loadingCitations, setLoadingCitations] = useState(true);
 
-  const formats: Format[] = useMemo(() => ['APA', 'MLA', 'Chicago', 'Harvard', 'IEEE'], []);
+  const formats: Format[] = useMemo(() => ['APA', 'MLA', 'Chicago', 'IEEE'], []);
 
-  // Load citations from database on mount
   useEffect(() => {
     async function loadCitations() {
       try {
@@ -62,29 +61,17 @@ export default function CitationsPage() {
   }
 
   async function addCitation() {
-    // Validate URL mode
     if (mode === 'url') {
       if (!urlOnly.trim()) {
         toast.error('Please enter a URL');
         return;
       }
     } else {
-      // Validate manual entry - all fields required
       const errors: string[] = [];
-      
-      if (!title.trim()) {
-        errors.push('Title is required');
-      }
-      if (!authors.trim()) {
-        errors.push('Authors is required');
-      }
-      if (!year.trim()) {
-        errors.push('Year is required');
-      }
-      if (!url.trim()) {
-        errors.push('URL is required');
-      }
-
+      if (!title.trim()) errors.push('Title is required');
+      if (!authors.trim()) errors.push('Authors is required');
+      if (!year.trim()) errors.push('Year is required');
+      if (!url.trim()) errors.push('URL is required');
       if (errors.length > 0) {
         errors.forEach(error => toast.error(error));
         return;
@@ -105,22 +92,12 @@ export default function CitationsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Failed to create citation');
       
-      // Handle both old format (string) and new format (object)
       const citationItem: CitationItem = typeof data === 'string' || data.citation
-        ? {
-            id: data.id,
-            fullCitation: data.citation || data,
-            inTextCitation: '(n.d.)'
-          }
-        : {
-            id: data.id,
-            fullCitation: data.fullCitation || '',
-            inTextCitation: data.inTextCitation || '(n.d.)'
-          };
+        ? { id: data.id, fullCitation: data.citation || data, inTextCitation: '(n.d.)' }
+        : { id: data.id, fullCitation: data.fullCitation || '', inTextCitation: data.inTextCitation || '(n.d.)' };
       
       setItems((prev) => [citationItem, ...prev]);
       toast.success('Citation created successfully!');
-      // Clear form
       if (mode === 'url') {
         setUrlOnly('');
       } else {
@@ -138,20 +115,13 @@ export default function CitationsPage() {
 
   async function deleteCitation(citationId: string | undefined, index: number) {
     if (!citationId) {
-      // Local citation without ID, just remove from state
       setItems((prev) => prev.filter((_, i) => i !== index));
       return;
     }
 
     try {
-      const res = await fetch(`/api/citations/${citationId}`, {
-        method: 'DELETE',
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to delete citation');
-      }
-
+      const res = await fetch(`/api/citations/${citationId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete citation');
       setItems((prev) => prev.filter((item) => item.id !== citationId));
       toast.success('Citation deleted successfully');
     } catch (e: any) {
@@ -168,154 +138,7 @@ export default function CitationsPage() {
         body: JSON.stringify({ kind, itemId, format, timestamp: new Date().toISOString() }),
       });
     } catch (err) {
-      // non-blocking
       console.warn('Export log failed', err);
-    }
-  }
-
-  function formatSingleCitationForExport(citation: CitationItem): string {
-    return `Citation\n\nFull Citation: ${citation.fullCitation}\nIn-Text Citation: ${citation.inTextCitation}`;
-  }
-
-  async function exportCitationPdf(citation: CitationItem, index: number) {
-    try {
-      let content = formatSingleCitationForExport(citation);
-      
-      // Always use AI enhancement for individual citations
-      toast.info('Formatting with AI...');
-      try {
-        const response = await fetch('/api/export/format', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content, type: 'citations', format: 'pdf' }),
-        });
-        
-        if (!response.ok) {
-          throw new Error('AI formatting failed');
-        }
-        
-        const data = await response.json();
-        content = data.formattedContent;
-      } catch (err) {
-        console.error('AI formatting error:', err);
-        toast.warning('AI formatting failed, using standard export');
-      }
-
-      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-      const margin = 40;
-      const pageWidth = doc.internal.pageSize.getWidth() - margin * 2;
-      const pageHeight = doc.internal.pageSize.getHeight();
-      let yPos = 60;
-
-      // Process line by line to handle headers and formatting
-      const lines = content.split('\n');
-      
-      for (const line of lines) {
-        if (yPos > pageHeight - 100) {
-          doc.addPage();
-          yPos = 60;
-        }
-        
-        // Check for headers
-        const headerMatch = line.match(/^(#{1,6})\s+(.+)$/);
-        if (headerMatch) {
-          const level = headerMatch[1].length;
-          const headerText = headerMatch[2].trim();
-          const fontSize = 18 - (level * 2);
-          
-          doc.setFontSize(fontSize);
-          doc.setFont('helvetica', 'bold');
-          const headerLines = doc.splitTextToSize(headerText, pageWidth);
-          doc.text(headerLines, margin, yPos);
-          yPos += headerLines.length * (fontSize + 2) + 10;
-          continue;
-        }
-        
-        // Process regular line with inline formatting
-        let processedLine = line
-          .replace(/\*\*(.*?)\*\*/g, '$1')
-          .replace(/\*(.*?)\*/g, '$1')
-          .replace(/`(.*?)`/g, '$1');
-        
-        if (processedLine.trim()) {
-          doc.setFontSize(10);
-          doc.setFont('helvetica', 'normal');
-          const textLines = doc.splitTextToSize(processedLine, pageWidth);
-          doc.text(textLines, margin, yPos);
-          yPos += textLines.length * 12 + 5;
-        } else {
-          yPos += 8;
-        }
-      }
-      
-      const safeName = `citation-${index + 1}`.replace(/[^a-z0-9-_ ]/gi, '');
-      const blob = doc.output('blob');
-      saveAs(blob, `${safeName}-ai-enhanced.pdf`);
-      
-      if (citation.id) {
-        await logExport('citation', citation.id, 'pdf-ai');
-      }
-      toast.success('PDF exported (AI-enhanced)');
-    } catch (err) {
-      console.error(err);
-      toast.error('Export failed');
-    }
-  }
-
-  async function exportCitationDocx(citation: CitationItem, index: number) {
-    try {
-      let content = formatSingleCitationForExport(citation);
-      
-      // Always use AI enhancement for individual citations
-      toast.info('Formatting with AI...');
-      try {
-        const response = await fetch('/api/export/format', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content, type: 'citations', format: 'docx' }),
-        });
-        
-        if (!response.ok) {
-          throw new Error('AI formatting failed');
-        }
-        
-        const data = await response.json();
-        content = data.formattedContent;
-      } catch (err) {
-        console.error('AI formatting error:', err);
-        toast.warning('AI formatting failed, using standard export');
-      }
-
-      const paragraphs: Paragraph[] = [
-        new Paragraph({
-          children: [new TextRun({ text: 'Citation', bold: true, size: 32 })],
-          spacing: { after: 300 },
-        }),
-      ];
-
-      // Use markdown parser
-      const parsedParagraphs = parseMarkdownForDocx(content);
-      paragraphs.push(...parsedParagraphs);
-
-      const doc = new Document({
-        sections: [
-          {
-            children: paragraphs,
-          },
-        ],
-      });
-      
-      const blob = await Packer.toBlob(doc);
-      const safeName = `citation-${index + 1}`.replace(/[^a-z0-9-_ ]/gi, '');
-      saveAs(blob, `${safeName}-ai-enhanced.docx`);
-      
-      if (citation.id) {
-        await logExport('citation', citation.id, 'docx-ai');
-      }
-      toast.success('DOCX exported (AI-enhanced)');
-    } catch (err) {
-      console.error(err);
-      toast.error('Export failed');
     }
   }
 
@@ -329,88 +152,59 @@ export default function CitationsPage() {
     return formatted;
   }
 
-  // Parse markdown and return formatted paragraphs for DOCX
   function parseMarkdownForDocx(text: string): Paragraph[] {
     const paragraphs: Paragraph[] = [];
     const lines = text.split('\n');
-    
     let currentParagraph: TextRun[] = [];
     
     for (const line of lines) {
-      // Check for headers
       const headerMatch = line.match(/^(#{1,6})\s+(.+)$/);
       if (headerMatch) {
-        // Save previous paragraph if exists
         if (currentParagraph.length > 0) {
-          paragraphs.push(new Paragraph({
-            children: currentParagraph,
-            spacing: { after: 200 },
-          }));
+          paragraphs.push(new Paragraph({ children: currentParagraph, spacing: { after: 200 } }));
           currentParagraph = [];
         }
-        
         const level = headerMatch[1].length;
         const headerText = headerMatch[2].trim();
-        const headerSize = 32 - (level * 4); // H1=28, H2=24, H3=20, etc.
-        
+        const sizes = [32, 28, 24, 22, 20, 18];
         paragraphs.push(new Paragraph({
-          children: [new TextRun({ text: headerText, bold: true, size: headerSize })],
-          spacing: { after: 200 },
+          children: [new TextRun({ text: headerText, bold: true, size: sizes[level - 1] || 20 })],
+          spacing: { before: 300, after: 200 },
         }));
         continue;
       }
-      
-      // Empty line = new paragraph
+
       if (!line.trim()) {
         if (currentParagraph.length > 0) {
-          paragraphs.push(new Paragraph({
-            children: currentParagraph,
-            spacing: { after: 200 },
-          }));
+          paragraphs.push(new Paragraph({ children: currentParagraph, spacing: { after: 200 } }));
           currentParagraph = [];
         }
         continue;
       }
-      
-      // Parse inline formatting
-      const parts = line.split(/(\*\*.*?\*\*|\*.*?\*|`.*?`)/);
+
+      const parts = line.split(/(\*\*.*?\*\*|\*.*?\*|`.*?`)/g);
       for (const part of parts) {
         if (!part) continue;
-        
         if (part.startsWith('**') && part.endsWith('**')) {
-          // Bold
-          const text = part.slice(2, -2);
-          currentParagraph.push(new TextRun({ text, bold: true, size: 20 }));
+          currentParagraph.push(new TextRun({ text: part.slice(2, -2), bold: true, size: 20 }));
         } else if (part.startsWith('*') && part.endsWith('*') && !part.startsWith('**')) {
-          // Italic
-          const text = part.slice(1, -1);
-          currentParagraph.push(new TextRun({ text, italics: true, size: 20 }));
+          currentParagraph.push(new TextRun({ text: part.slice(1, -1), italics: true, size: 20 }));
         } else if (part.startsWith('`') && part.endsWith('`')) {
-          // Code
-          const text = part.slice(1, -1);
-          currentParagraph.push(new TextRun({ text, font: 'Courier New', size: 18 }));
+          currentParagraph.push(new TextRun({ text: part.slice(1, -1), font: 'Courier New', size: 18 }));
         } else {
-          // Regular text
           currentParagraph.push(new TextRun({ text: part, size: 20 }));
         }
       }
-      
-      // Add space for line continuation
       currentParagraph.push(new TextRun({ text: ' ', size: 20 }));
     }
     
-    // Add remaining paragraph
     if (currentParagraph.length > 0) {
-      paragraphs.push(new Paragraph({
-        children: currentParagraph,
-        spacing: { after: 200 },
-      }));
+      paragraphs.push(new Paragraph({ children: currentParagraph, spacing: { after: 200 } }));
     }
-    
     return paragraphs;
   }
 
-  async function exportAllCitationsPdf(useAI: boolean = false) {
+  async function exportAllCitationsPdf() {
     if (items.length === 0) {
       toast.error('No citations to export');
       return;
@@ -418,27 +212,20 @@ export default function CitationsPage() {
 
     try {
       let content = formatCitationsForExport();
+      toast.info('Formatting with AI...');
       
-      // Use AI to format if requested
-      if (useAI) {
-        toast.info('Formatting with AI...');
-        try {
-          const response = await fetch('/api/export/format', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content, type: 'citations', format: 'pdf' }),
-          });
-          
-          if (!response.ok) {
-            throw new Error('AI formatting failed');
-          }
-          
+      try {
+        const response = await fetch('/api/export/format', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content, type: 'citations', format: 'pdf' }),
+        });
+        if (response.ok) {
           const data = await response.json();
           content = data.formattedContent;
-        } catch (err) {
-          console.error('AI formatting error:', err);
-          toast.warning('AI formatting failed, using standard export');
         }
+      } catch (err) {
+        console.error('AI formatting error:', err);
       }
 
       const doc = new jsPDF({ unit: 'pt', format: 'a4' });
@@ -447,85 +234,47 @@ export default function CitationsPage() {
       const pageHeight = doc.internal.pageSize.getHeight();
       let yPos = 60;
 
-      doc.setFontSize(18);
-      doc.text('Citations Export', margin, yPos);
-      yPos += 30;
-
-      // Parse markdown if AI-enhanced, otherwise use plain text
-      if (useAI) {
-        // Process line by line to handle headers and formatting
-        const lines = content.split('\n');
-        
-        for (const line of lines) {
-          if (yPos > pageHeight - 100) {
-            doc.addPage();
-            yPos = 60;
-          }
-          
-          // Check for headers
-          const headerMatch = line.match(/^(#{1,6})\s+(.+)$/);
-          if (headerMatch) {
-            const level = headerMatch[1].length;
-            const headerText = headerMatch[2].trim();
-            const fontSize = 18 - (level * 2);
-            
-            doc.setFontSize(fontSize);
-            doc.setFont('helvetica', 'bold');
-            const headerLines = doc.splitTextToSize(headerText, pageWidth);
-            doc.text(headerLines, margin, yPos);
-            yPos += headerLines.length * (fontSize + 2) + 10;
-            continue;
-          }
-          
-          // Process regular line with inline formatting
-          // For PDF, we'll strip markdown but keep structure
-          let processedLine = line
-            .replace(/\*\*(.*?)\*\*/g, '$1') // Bold - keep text
-            .replace(/\*(.*?)\*/g, '$1') // Italic - keep text
-            .replace(/`(.*?)`/g, '$1'); // Code - keep text
-          
-          if (processedLine.trim()) {
-            doc.setFontSize(10);
-            doc.setFont('helvetica', 'normal');
-            const textLines = doc.splitTextToSize(processedLine, pageWidth);
-            doc.text(textLines, margin, yPos);
-            yPos += textLines.length * 12 + 5;
-          } else {
-            // Empty line
-            yPos += 8;
-          }
+      const lines = content.split('\n');
+      for (const line of lines) {
+        if (yPos > pageHeight - 100) {
+          doc.addPage();
+          yPos = 60;
         }
-      } else {
-        // Standard export - plain text
-        const lines = doc.splitTextToSize(content, pageWidth);
-        let currentLine = 0;
         
-        while (currentLine < lines.length) {
-          if (yPos > pageHeight - 100) {
-            doc.addPage();
-            yPos = 60;
-          }
-          
-          const linesToFit = Math.floor((pageHeight - yPos - 100) / 12);
-          const linesForThisPage = lines.slice(currentLine, currentLine + linesToFit);
+        const headerMatch = line.match(/^(#{1,6})\s+(.+)$/);
+        if (headerMatch) {
+          const level = headerMatch[1].length;
+          const headerText = headerMatch[2].trim();
+          const fontSize = 18 - (level * 2);
+          doc.setFontSize(fontSize);
+          doc.setFont('helvetica', 'bold');
+          const headerLines = doc.splitTextToSize(headerText, pageWidth);
+          doc.text(headerLines, margin, yPos);
+          yPos += headerLines.length * (fontSize + 2) + 10;
+          continue;
+        }
+        
+        let processedLine = line.replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1').replace(/`(.*?)`/g, '$1');
+        if (processedLine.trim()) {
           doc.setFontSize(10);
-          doc.text(linesForThisPage, margin, yPos);
-          yPos += linesForThisPage.length * 12 + 10;
-          currentLine += linesToFit;
+          doc.setFont('helvetica', 'normal');
+          const textLines = doc.splitTextToSize(processedLine, pageWidth);
+          doc.text(textLines, margin, yPos);
+          yPos += textLines.length * 12 + 5;
+        } else {
+          yPos += 8;
         }
       }
-
-      const blob = doc.output('blob');
-      const suffix = useAI ? '-ai-enhanced' : '';
-      saveAs(blob, `citations-export${suffix}.pdf`);
-      toast.success(`All citations exported as PDF${useAI ? ' (AI-enhanced)' : ''}`);
+      
+      saveAs(doc.output('blob'), 'citations-export.pdf');
+      toast.success('Citations exported as PDF');
     } catch (err) {
       console.error(err);
       toast.error('Export failed');
     }
   }
 
-  async function exportAllCitationsDocx(useAI: boolean = false) {
+  async function exportAllCitationsDocx() {
     if (items.length === 0) {
       toast.error('No citations to export');
       return;
@@ -533,69 +282,34 @@ export default function CitationsPage() {
 
     try {
       let content = formatCitationsForExport();
+      toast.info('Formatting with AI...');
       
-      // Use AI to format if requested
-      if (useAI) {
-        toast.info('Formatting with AI...');
-        try {
-          const response = await fetch('/api/export/format', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content, type: 'citations', format: 'docx' }),
-          });
-          
-          if (!response.ok) {
-            throw new Error('AI formatting failed');
-          }
-          
+      try {
+        const response = await fetch('/api/export/format', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content, type: 'citations', format: 'docx' }),
+        });
+        if (response.ok) {
           const data = await response.json();
           content = data.formattedContent;
-        } catch (err) {
-          console.error('AI formatting error:', err);
-          toast.warning('AI formatting failed, using standard export');
         }
+      } catch (err) {
+        console.error('AI formatting error:', err);
       }
 
-      // Parse markdown if AI-enhanced, otherwise use simple formatting
-      let paragraphs: Paragraph[] = [
+      const paragraphs: Paragraph[] = [
         new Paragraph({
           children: [new TextRun({ text: 'Citations Export', bold: true, size: 32 })],
           spacing: { after: 300 },
         }),
+        ...parseMarkdownForDocx(content),
       ];
 
-      if (useAI) {
-        // Use markdown parser
-        const parsedParagraphs = parseMarkdownForDocx(content);
-        paragraphs = paragraphs.concat(parsedParagraphs);
-      } else {
-        // Standard export - simple formatting
-        const contentParagraphs = content.split(/\n\n+/).filter(p => p.trim());
-        contentParagraphs.forEach((para) => {
-          const trimmed = para.trim();
-          if (!trimmed) return;
-          
-          paragraphs.push(
-            new Paragraph({
-              children: [new TextRun({ text: trimmed, size: 20 })],
-              spacing: { after: 200 },
-            })
-          );
-        });
-      }
-
-      const doc = new Document({
-        sections: [
-          {
-            children: paragraphs,
-          },
-        ],
-      });
-
+      const doc = new Document({ sections: [{ children: paragraphs }] });
       const blob = await Packer.toBlob(doc);
-      const suffix = useAI ? '-ai-enhanced' : '';
-      saveAs(blob, `citations-export${suffix}.docx`);
-      toast.success(`All citations exported as DOCX${useAI ? ' (AI-enhanced)' : ''}`);
+      saveAs(blob, 'citations-export.docx');
+      toast.success('Citations exported as DOCX');
     } catch (err) {
       console.error(err);
       toast.error('Export failed');
@@ -603,229 +317,296 @@ export default function CitationsPage() {
   }
 
   return (
-    <div className="h-full w-full p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-6 min-h-0">
-      <div className="card p-4 md:p-6 bg-card border-theme rounded-xl text-foreground">
-        <h2 className="text-xl font-semibold mb-4 text-foreground">Add New Citation</h2>
+    <div className="h-full w-full grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-6 min-h-0">
+      {/* Left Panel - Add Citation Form */}
+      <div className="bg-card border border-theme rounded-2xl p-4 flex flex-col overflow-hidden max-h-[600px]">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[var(--brand-blue)] to-indigo-600 flex items-center justify-center">
+            <FileTextIcon className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-foreground">Add Citation</h2>
+            <p className="text-xs text-muted">Generate formatted references</p>
+          </div>
+        </div>
 
         {/* Mode Toggle */}
-        <div className="flex gap-2 mb-4 p-1 bg-subtle-bg rounded-lg">
+        <div className="flex gap-1 p-1 bg-subtle-bg rounded-xl mb-4">
           <button
             type="button"
             onClick={() => setMode('manual')}
-            className={`flex-1 px-3 py-2 text-sm rounded-md transition-colors ${
+            className={`flex-1 px-4 py-2.5 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 ${
               mode === 'manual'
-                ? 'bg-[var(--brand-blue)] text-white'
+                ? 'bg-card text-foreground shadow-sm border border-theme'
                 : 'text-muted hover:text-foreground'
             }`}
           >
-            Manual Entry
+            <FileTextIcon className="h-4 w-4" />
+            Manual
           </button>
           <button
             type="button"
             onClick={() => setMode('url')}
-            className={`flex-1 px-3 py-2 text-sm rounded-md transition-colors ${
+            className={`flex-1 px-4 py-2.5 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 ${
               mode === 'url'
-                ? 'bg-[var(--brand-blue)] text-white'
+                ? 'bg-card text-foreground shadow-sm border border-theme'
                 : 'text-muted hover:text-foreground'
             }`}
           >
-            URL Only
+            <Link2Icon className="h-4 w-4" />
+            From URL
           </button>
         </div>
 
-        {mode === 'url' ? (
-          <>
-            <label className="block text-sm mb-1 text-foreground">Website URL</label>
-            <input
-              type="url"
-              className="w-full mb-4 px-3 py-2 rounded-md bg-input-bg border border-theme focus:outline-none focus:ring-2 focus:ring-[var(--brand-blue)] text-foreground placeholder-muted"
-              placeholder="https://example.com/article"
-              value={urlOnly}
-              onChange={(e) => setUrlOnly(e.target.value)}
-            />
-            <p className="text-xs text-muted mb-4">
-              Paste a URL and we'll automatically extract citation information
-            </p>
-          </>
-        ) : (
-          <>
-            <label className="block text-sm mb-1 text-foreground">Title <span className="text-red-400">*</span></label>
-        <input
-          type="text"
-          required
-          className="w-full mb-4 px-3 py-2 rounded-md bg-input-bg border border-theme focus:outline-none focus:ring-2 focus:ring-[var(--brand-blue)] text-foreground placeholder-muted"
-          placeholder="Research paper title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
+        <div className="flex-1 overflow-y-auto space-y-3">
+          {mode === 'url' ? (
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Website URL</label>
+              <input
+                type="url"
+                className="w-full px-3 py-2 rounded-xl bg-input-bg border border-theme focus:outline-none focus:border-[var(--brand-blue)] transition-colors text-foreground placeholder-muted"
+                placeholder="https://example.com/article"
+                value={urlOnly}
+                onChange={(e) => setUrlOnly(e.target.value)}
+              />
+              <p className="text-xs text-muted mt-2 flex items-center gap-1">
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                We'll automatically extract citation info
+              </p>
+            </div>
+          ) : (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Title <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 rounded-xl bg-input-bg border border-theme focus:outline-none focus:border-[var(--brand-blue)] transition-colors text-foreground placeholder-muted"
+                  placeholder="Research paper title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              </div>
 
-        <label className="block text-sm mb-1 text-foreground">Authors <span className="text-red-400">*</span></label>
-        <input
-          type="text"
-          required
-          className="w-full mb-1 px-3 py-2 rounded-md bg-input-bg border border-theme focus:outline-none focus:ring-2 focus:ring-[var(--brand-blue)] text-foreground placeholder-muted"
-          placeholder="Smith, J.; Johnson, A."
-          value={authors}
-          onChange={(e) => setAuthors(e.target.value)}
-        />
-        <p className="text-xs text-muted mb-4">Separate multiple authors with semicolons</p>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Authors <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 rounded-xl bg-input-bg border border-theme focus:outline-none focus:border-[var(--brand-blue)] transition-colors text-foreground placeholder-muted"
+                  placeholder="Smith, J.; Johnson, A."
+                  value={authors}
+                  onChange={(e) => setAuthors(e.target.value)}
+                />
+                <p className="text-xs text-muted mt-1">Separate with semicolons</p>
+              </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    Year <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 rounded-xl bg-input-bg border border-theme focus:outline-none focus:border-[var(--brand-blue)] transition-colors text-foreground placeholder-muted"
+                    placeholder="2025"
+                    value={year}
+                    onChange={(e) => setYear(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    URL <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="url"
+                    className="w-full px-3 py-2 rounded-xl bg-input-bg border border-theme focus:outline-none focus:border-[var(--brand-blue)] transition-colors text-foreground placeholder-muted"
+                    placeholder="https://..."
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Format Selector */}
           <div>
-            <label className="block text-sm mb-1 text-foreground">Year <span className="text-red-400">*</span></label>
-            <input
-              type="text"
-              required
-              className="w-full px-3 py-2 rounded-md bg-input-bg border border-theme focus:outline-none focus:ring-2 focus:ring-[var(--brand-blue)] text-foreground placeholder-muted"
-              placeholder="2025"
-              value={year}
-              onChange={(e) => setYear(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block text-sm mb-1 text-foreground">URL <span className="text-red-400">*</span></label>
-            <input
-              type="url"
-              required
-              className="w-full px-3 py-2 rounded-md bg-input-bg border border-theme focus:outline-none focus:ring-2 focus:ring-[var(--brand-blue)] text-foreground placeholder-muted"
-              placeholder="https://example.com"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-            />
+            <label className="block text-sm font-medium text-foreground mb-2">Citation Format</label>
+            <div className="flex flex-wrap gap-2">
+              {formats.map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFormat(f)}
+                  className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                    format === f
+                      ? 'bg-gradient-to-r from-[var(--brand-blue)] to-indigo-600 text-white shadow-lg shadow-[var(--brand-blue)]/25'
+                      : 'bg-subtle-bg text-muted hover:text-foreground border border-theme hover:border-white/20'
+                  }`}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-          </>
-        )}
 
-        <div className="mt-4">
-          <p className="text-sm mb-2 text-foreground">Format</p>
-          <div className="flex flex-wrap gap-2">
-            {formats.map((f) => (
-              <button
-                key={f}
-                onClick={() => setFormat(f)}
-                className={
-                  'px-3 py-1.5 rounded-md border transition-colors ' +
-                  (format === f
-                    ? 'bg-[var(--brand-blue)] text-white border-[var(--brand-blue)]'
-                    : 'bg-card text-foreground border-theme hover:border-white/10')
-                }
-              >
-                {f}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Add Button */}
         <button
           type="button"
           onClick={addCitation}
           disabled={loading || (mode === 'url' ? !urlOnly.trim() : !title.trim() || !authors.trim() || !year.trim() || !url.trim())}
-          className="mt-6 w-full rounded-md px-4 py-2 bg-[var(--brand-blue)] text-white hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+          className="mt-3 w-full rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:brightness-110 hover:scale-[1.01] active:scale-[0.99] shadow-lg shadow-[var(--brand-blue)]/25 flex items-center justify-center gap-2"
+          style={{ background: 'linear-gradient(135deg, var(--brand-blue), #4F46E5)' }}
         >
-          {loading ? 'Generating…' : mode === 'url' ? 'Generate from URL' : '+ Add Citation'}
+          {loading ? (
+            <>
+              <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Generating...
+            </>
+          ) : (
+            <>
+              <PlusIcon className="h-4 w-4" />
+              {mode === 'url' ? 'Generate from URL' : 'Add Citation'}
+            </>
+          )}
         </button>
       </div>
-  <div className="card p-4 md:p-6 bg-card border-theme rounded-xl flex flex-col overflow-hidden max-h-[calc(100vh-8rem)] text-foreground">
-        <div className="flex items-center justify-between mb-4 flex-shrink-0">
-          <h2 className="text-xl font-semibold text-foreground">Your Citations</h2>
+
+      {/* Right Panel - Citations List */}
+      <div className="bg-card border border-theme rounded-2xl flex flex-col overflow-hidden max-h-[600px]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-theme bg-subtle-bg/30">
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold text-foreground">Your Citations</h2>
+            {items.length > 0 && (
+              <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-[var(--brand-blue)]/20 text-[var(--brand-blue)]">
+                {items.length}
+              </span>
+            )}
+          </div>
           {items.length > 0 && (
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => exportAllCitationsPdf(true)}
-                className="px-3 py-1.5 text-sm rounded-md border border-theme hover:bg-subtle-bg text-foreground flex items-center gap-1.5 transition-colors bg-[var(--brand-blue)]/10 hover:bg-[var(--brand-blue)]/20"
-                title="Export all as PDF (AI-enhanced)"
+                onClick={exportAllCitationsPdf}
+                className="px-4 py-2 text-sm font-medium rounded-xl border border-theme bg-card hover:bg-subtle-bg text-foreground flex items-center gap-2 transition-all"
               >
                 <DownloadIcon className="h-4 w-4" />
-                PDF AI
+                PDF
               </button>
               <button
                 type="button"
-                onClick={() => exportAllCitationsDocx(true)}
-                className="px-3 py-1.5 text-sm rounded-md border border-theme hover:bg-subtle-bg text-foreground flex items-center gap-1.5 transition-colors bg-[var(--brand-blue)]/10 hover:bg-[var(--brand-blue)]/20"
-                title="Export all as DOCX (AI-enhanced)"
+                onClick={exportAllCitationsDocx}
+                className="px-4 py-2 text-sm font-medium rounded-xl border border-theme bg-card hover:bg-subtle-bg text-foreground flex items-center gap-2 transition-all"
               >
                 <DownloadIcon className="h-4 w-4" />
-                DOCX AI
+                DOCX
               </button>
             </div>
           )}
         </div>
-        {loadingCitations ? (
-          <p className="text-muted">Loading citations...</p>
-        ) : items.length === 0 ? (
-          <p className="text-muted">No citations yet. Add one from the form.</p>
-        ) : (
-          <ul className="flex-1 overflow-y-auto pr-2 space-y-4 min-h-0 max-h-full">
-            {items.map((c, i) => (
-              <li key={c.id || i} className="p-4 bg-subtle-bg border border-theme rounded-md space-y-3 relative group">
-                {/* Full Citation */}
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <label className="text-xs font-medium text-muted">Full Citation</label>
-                    <div className="flex items-center gap-1">
-                      <WorkspaceQuickAddButton
-                        className="p-1.5 rounded hover:bg-black/5 transition-colors text-muted hover:text-foreground"
-                        derive={() => ({
-                          title: `Citation ${i + 1}`,
-                          content: `${c.fullCitation}\n\nIn-Text: ${c.inTextCitation}`,
-                          section: 'references',
-                          tags: ['citation']
-                        })}
-                      >
-                        <BookmarkIcon className="h-4 w-4" />
-                      </WorkspaceQuickAddButton>
+
+        {/* Citations List */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {loadingCitations ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center">
+                <div className="h-8 w-8 border-2 border-[var(--brand-blue)] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-sm text-muted">Loading citations...</p>
+              </div>
+            </div>
+          ) : items.length === 0 ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center max-w-xs">
+                <div className="w-16 h-16 rounded-2xl bg-subtle-bg border border-dashed border-theme flex items-center justify-center mx-auto mb-4">
+                  <FileTextIcon className="h-8 w-8 text-muted" />
+                </div>
+                <h3 className="font-medium text-foreground mb-1">No citations yet</h3>
+                <p className="text-sm text-muted">Add your first citation using the form on the left.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {items.map((c, i) => (
+                <div 
+                  key={c.id || i} 
+                  className="group p-5 bg-subtle-bg/50 hover:bg-subtle-bg border border-theme hover:border-white/20 rounded-2xl transition-all"
+                >
+                  {/* Full Citation */}
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-[var(--brand-blue)]">
+                        Full Citation
+                      </span>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <WorkspaceQuickAddButton
+                          className="p-2 rounded-lg hover:bg-card transition-colors text-muted hover:text-foreground"
+                          derive={() => ({
+                            title: `Citation ${i + 1}`,
+                            content: `${c.fullCitation}\n\nIn-Text: ${c.inTextCitation}`,
+                            section: 'references',
+                            tags: ['citation']
+                          })}
+                        >
+                          <BookmarkIcon className="h-4 w-4" />
+                        </WorkspaceQuickAddButton>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(c.fullCitation, 'full', i)}
+                          className="p-2 rounded-lg hover:bg-card transition-colors text-muted hover:text-foreground"
+                          title="Copy"
+                        >
+                          {copiedIndex?.type === 'full' && copiedIndex?.index === i ? (
+                            <CheckIcon className="h-4 w-4 text-emerald-500" />
+                          ) : (
+                            <CopyIcon className="h-4 w-4" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteCitation(c.id, i)}
+                          className="p-2 rounded-lg hover:bg-red-500/20 text-muted hover:text-red-400 transition-colors"
+                          title="Delete"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-sm text-foreground leading-relaxed">{c.fullCitation}</p>
+                  </div>
+
+                  {/* In-Text Citation */}
+                  <div className="pt-4 border-t border-theme/50">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-emerald-500">
+                        In-Text Citation
+                      </span>
                       <button
                         type="button"
-                        onClick={() => copyToClipboard(c.fullCitation, 'full', i)}
-                        className="p-1.5 rounded hover:bg-black/5 transition-colors text-muted hover:text-foreground"
-                        title="Copy full citation"
+                        onClick={() => copyToClipboard(c.inTextCitation, 'inText', i)}
+                        className="p-2 rounded-lg hover:bg-card transition-colors text-muted hover:text-foreground opacity-0 group-hover:opacity-100"
+                        title="Copy"
                       >
-                        {copiedIndex?.type === 'full' && copiedIndex?.index === i ? (
-                          <CheckIcon className="h-4 w-4 text-green-600" />
+                        {copiedIndex?.type === 'inText' && copiedIndex?.index === i ? (
+                          <CheckIcon className="h-4 w-4 text-emerald-500" />
                         ) : (
                           <CopyIcon className="h-4 w-4" />
                         )}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteCitation(c.id, i)}
-                        className="p-1.5 rounded hover:bg-red-500/20 text-muted hover:text-red-400 transition-colors"
-                        title="Delete citation"
-                      >
-                        <TrashIcon className="h-4 w-4" />
-                      </button>
                     </div>
+                    <p className="text-sm font-medium text-foreground">{c.inTextCitation}</p>
                   </div>
-                  <p className="text-sm text-foreground break-words">{c.fullCitation}</p>
                 </div>
-
-                {/* In-Text Citation */}
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <label className="text-xs font-medium text-muted">In-Text Citation</label>
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(c.inTextCitation, 'inText', i)}
-                      className="p-1.5 rounded hover:bg-black/5 transition-colors text-muted hover:text-foreground"
-                      title="Copy in-text citation"
-                    >
-                      {copiedIndex?.type === 'inText' && copiedIndex?.index === i ? (
-                        <CheckIcon className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <CopyIcon className="h-4 w-4" />
-                      )}
-                    </button>
-                  </div>
-                  <p className="text-sm text-foreground break-words">{c.inTextCitation}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
-
-

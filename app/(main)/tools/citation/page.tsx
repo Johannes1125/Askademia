@@ -14,7 +14,7 @@ type Citation = {
   authors: string;
   year: string;
   url: string;
-  style: "APA" | "MLA" | "Chicago" | "Harvard" | "IEEE";
+  style: "APA" | "MLA" | "Chicago" | "IEEE";
   formatted: string;
 };
 
@@ -40,8 +40,6 @@ export default function CitationPage() {
         return `${authorsDisplay}. "${title}." ${y}. ${url ? url : ""}`.trim();
       case "Chicago":
         return `${authorsDisplay}. ${y}. ${title}. ${url ? url : ""}`.trim();
-      case "Harvard":
-        return `${authorsDisplay} (${y}) ${title}. ${url ? url : ""}`.trim();
       case "IEEE":
         return `${authorsDisplay}, "${title}," ${y}. ${url ? url : ""}`.trim();
       default:
@@ -139,12 +137,13 @@ export default function CitationPage() {
   }
 
   return (
-    <div className="space-y-6 min-h-screen">
+    <div className="h-full overflow-hidden">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
         {/* Add New Citation Card */}
-  <div className="card p-5 sm:p-6 bg-card text-foreground border-theme hover:shadow-lg transition-shadow rounded-xl">
-          <h2 className="text-xl font-bold mb-4 text-foreground">Add New Citation</h2>
+        <div className="card p-5 sm:p-6 bg-card text-foreground border-theme hover:shadow-lg transition-shadow rounded-xl flex flex-col overflow-hidden">
+          <h2 className="text-xl font-bold mb-4 text-foreground flex-shrink-0">Add New Citation</h2>
 
+          <div className="flex-1 overflow-y-auto min-h-0 pr-2">
           {/* Tabs */}
           <div className="flex gap-2 mb-6">
             <button
@@ -234,7 +233,7 @@ export default function CitationPage() {
               <div>
                 <label className="block text-sm font-medium text-foreground mb-3">Format</label>
                 <div className="flex flex-wrap gap-2">
-                  {["APA", "MLA", "Chicago", "Harvard", "IEEE"].map((fmt) => (
+                  {["APA", "MLA", "Chicago", "IEEE"].map((fmt) => (
                     <button
                       key={fmt}
                       type="button"
@@ -280,12 +279,13 @@ export default function CitationPage() {
               </button>
             </form>
           )}
+          </div>
         </div>
 
         {/* Your Citations Card */}
-  <div className="card p-5 sm:p-6 bg-card border-theme text-foreground hover:shadow-lg transition-shadow rounded-xl flex flex-col h-full max-h-[70vh] overflow-y-auto">
-          <h2 className="text-xl font-bold mb-4 text-foreground">Your Citations</h2>
-          <div className="space-y-3 overflow-y-auto flex-1 min-h-0">
+        <div className="card p-5 sm:p-6 bg-card border-theme text-foreground hover:shadow-lg transition-shadow rounded-xl flex flex-col max-h-[600px]">
+          <h2 className="text-xl font-bold mb-4 text-foreground flex-shrink-0">Your Citations</h2>
+          <div className="space-y-3 overflow-y-auto flex-1 min-h-0 pr-2" style={{ scrollbarWidth: 'thin' }}>
             {citations.length === 0 ? (
               <p className="text-center text-muted py-8">No citations yet</p>
             ) : (

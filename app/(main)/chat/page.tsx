@@ -4,7 +4,7 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { toast } from "react-toastify";
-import { PaperPlaneIcon, PlusIcon, TrashIcon, ReloadIcon, DownloadIcon, BookmarkIcon, ReaderIcon } from "@radix-ui/react-icons";
+import { PaperPlaneIcon, PlusIcon, TrashIcon, ReloadIcon, DownloadIcon, BookmarkIcon, ReaderIcon, GlobeIcon } from "@radix-ui/react-icons";
 import ReactMarkdown from "react-markdown";
 import { jsPDF } from "jspdf";
 import { Document, Packer, Paragraph, TextRun } from "docx";
@@ -95,6 +95,9 @@ export default function ChatPage() {
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
   const [recognitionError, setRecognitionError] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>("en");
+  const [translationCache, setTranslationCache] = useState<Record<string, Record<string, string>>>({});
+  const [translatingMessages, setTranslatingMessages] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const committedTextRef = useRef<string>("");
@@ -115,6 +118,75 @@ export default function ChatPage() {
     "Help with literature review",
     "Improve my academic writing",
   ];
+
+  // Supported languages for translation
+  const languages = [
+    { code: "en", name: "English", flag: "🇺🇸" },
+    { code: "fil", name: "Filipino", flag: "🇵🇭" },
+    { code: "es", name: "Spanish", flag: "🇪🇸" },
+  ];
+
+  // Translate a message
+  const translateMessage = async (messageId: string, content: string, targetLang: string) => {
+    if (targetLang === "en") return; // No translation needed for English
+    
+    // Check cache first
+    if (translationCache[messageId]?.[targetLang]) return;
+    
+    // Mark as translating
+    setTranslatingMessages(prev => new Set(prev).add(messageId));
+    
+    try {
+      const res = await fetch("/api/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: content, targetLanguage: targetLang }),
+      });
+      
+      if (!res.ok) throw new Error("Translation failed");
+      
+      const data = await res.json();
+      
+      // Update cache
+      setTranslationCache(prev => ({
+        ...prev,
+        [messageId]: {
+          ...(prev[messageId] || {}),
+          [targetLang]: data.translatedText,
+        },
+      }));
+    } catch (error) {
+      console.error("Translation error:", error);
+      toast.error("Failed to translate message");
+    } finally {
+      setTranslatingMessages(prev => {
+        const next = new Set(prev);
+        next.delete(messageId);
+        return next;
+      });
+    }
+  };
+
+  // Translate all assistant messages when language changes
+  useEffect(() => {
+    if (selectedLanguage === "en" || !active) return;
+    
+    active.messages
+      .filter(m => m.role === "assistant" && m.content)
+      .forEach(m => {
+        if (!translationCache[m.id]?.[selectedLanguage]) {
+          translateMessage(m.id, m.content, selectedLanguage);
+        }
+      });
+  }, [selectedLanguage, active?.id, active?.messages.length]);
+
+  // Get translated content for a message
+  const getMessageContent = (message: Message): string => {
+    if (message.role === "user" || selectedLanguage === "en") {
+      return message.content;
+    }
+    return translationCache[message.id]?.[selectedLanguage] || message.content;
+  };
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -615,10 +687,20 @@ export default function ChatPage() {
   function formatConversationForExport(): string {
     if (!active) return '';
     
-    let formatted = `Conversation: ${active.title || 'Untitled Conversation'}\n\n`;
+    const langName = languages.find(l => l.code === selectedLanguage)?.name || 'English';
+    let formatted = `Conversation: ${active.title || 'Untitled Conversation'}`;
+    if (selectedLanguage !== 'en') {
+      formatted += ` (Translated to ${langName})`;
+    }
+    formatted += '\n\n';
+    
     active.messages.forEach((message) => {
       const role = message.role === 'user' ? 'You' : 'Askademia';
-      const content = stripMarkdown(message.content);
+      // Use translated content for assistant messages when available
+      const rawContent = message.role === 'assistant' && selectedLanguage !== 'en'
+        ? (translationCache[message.id]?.[selectedLanguage] || message.content)
+        : message.content;
+      const content = stripMarkdown(rawContent);
       formatted += `${role}:\n${content}\n\n`;
     });
     return formatted;
@@ -1349,42 +1431,49 @@ export default function ChatPage() {
           <span>
             {loadingConversations ? "Loading..." : (active ? (active.messages.length === 0 ? "New Conversation" : active.title) : "No conversation selected")}
           </span>
-          {active && active.messages.length > 0 && (
-            <div className="flex gap-2">
-              <button
-                onClick={() => exportConversationPdf(false)}
-                className="px-3 py-1.5 text-sm rounded-lg border border-theme hover:bg-subtle-bg text-foreground flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 shadow-sm hover:shadow-md"
-                title="Export as PDF"
+          <div className="flex items-center gap-3">
+            {/* Language Selector */}
+            <div className="relative">
+              <select
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value)}
+                className="appearance-none pl-8 pr-8 py-1.5 text-sm rounded-lg border border-theme bg-input-bg text-foreground cursor-pointer hover:bg-subtle-bg transition-colors focus:outline-none focus:border-[var(--brand-blue)]"
+                title="Translate AI responses"
               >
-                <DownloadIcon className="h-4 w-4" />
-                PDF
-              </button>
-              <button
-                onClick={() => exportConversationDocx(false)}
-                className="px-3 py-1.5 text-sm rounded-lg border border-theme hover:bg-subtle-bg text-foreground flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 shadow-sm hover:shadow-md"
-                title="Export as DOCX"
-              >
-                <DownloadIcon className="h-4 w-4" />
-                DOCX
-              </button>
-              <button
-                onClick={() => exportConversationPdf(true)}
-                className="px-3 py-1.5 text-sm rounded-lg border border-theme hover:bg-subtle-bg text-foreground flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 bg-[var(--brand-blue)]/10 hover:bg-[var(--brand-blue)]/20 shadow-sm hover:shadow-md"
-                title="Export as PDF (AI-enhanced)"
-              >
-                <DownloadIcon className="h-4 w-4" />
-                PDF AI
-              </button>
-              <button
-                onClick={() => exportConversationDocx(true)}
-                className="px-3 py-1.5 text-sm rounded-lg border border-theme hover:bg-subtle-bg text-foreground flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 bg-[var(--brand-blue)]/10 hover:bg-[var(--brand-blue)]/20 shadow-sm hover:shadow-md"
-                title="Export as DOCX (AI-enhanced)"
-              >
-                <DownloadIcon className="h-4 w-4" />
-                DOCX AI
-              </button>
+                {languages.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.flag} {lang.name}
+                  </option>
+                ))}
+              </select>
+              <GlobeIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted pointer-events-none" />
+              <svg className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
             </div>
-          )}
+
+            {/* Export Buttons */}
+            {active && active.messages.length > 0 && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => exportConversationPdf(true)}
+                  className="px-3 py-1.5 text-sm rounded-lg border border-theme hover:bg-subtle-bg text-foreground flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 shadow-sm hover:shadow-md"
+                  title={`Export as PDF${selectedLanguage !== 'en' ? ' (translated)' : ''}`}
+                >
+                  <DownloadIcon className="h-4 w-4" />
+                  PDF
+                </button>
+                <button
+                  onClick={() => exportConversationDocx(true)}
+                  className="px-3 py-1.5 text-sm rounded-lg border border-theme hover:bg-subtle-bg text-foreground flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 shadow-sm hover:shadow-md"
+                  title={`Export as DOCX${selectedLanguage !== 'en' ? ' (translated)' : ''}`}
+                >
+                  <DownloadIcon className="h-4 w-4" />
+                  DOCX
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Messages Area - WITH SCROLLBAR */}
@@ -1436,6 +1525,22 @@ export default function ChatPage() {
                     {m.content ? (
                       m.role === "assistant" ? (
                         <div className="prose prose-invert prose-sm max-w-none">
+                          {/* Translation indicator */}
+                          {selectedLanguage !== "en" && (
+                            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-theme/50">
+                              {translatingMessages.has(m.id) ? (
+                                <span className="text-xs text-muted flex items-center gap-1.5">
+                                  <div className="h-3 w-3 border-2 border-muted border-t-transparent rounded-full animate-spin" />
+                                  Translating to {languages.find(l => l.code === selectedLanguage)?.name}...
+                                </span>
+                              ) : translationCache[m.id]?.[selectedLanguage] ? (
+                                <span className="text-xs text-muted flex items-center gap-1.5">
+                                  <GlobeIcon className="h-3 w-3" />
+                                  {languages.find(l => l.code === selectedLanguage)?.flag} Translated to {languages.find(l => l.code === selectedLanguage)?.name}
+                                </span>
+                              ) : null}
+                            </div>
+                          )}
                           <ReactMarkdown
                             components={{
                               h1: ({node, ...props}: any) => <h1 className="text-lg font-semibold mt-2 mb-1 text-foreground" {...props} />,
@@ -1452,7 +1557,7 @@ export default function ChatPage() {
                               blockquote: ({node, ...props}: any) => <blockquote className="border-l-4 border-theme pl-4 italic my-2 text-muted" {...props} />,
                             }}
                           >
-                            {m.content}
+                            {getMessageContent(m)}
                           </ReactMarkdown>
                         </div>
                       ) : (
@@ -1499,8 +1604,8 @@ export default function ChatPage() {
                           className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-theme text-muted hover:text-foreground transition-colors"
                           variant="fullpage"
                           derive={() => ({
-                            title: `${active?.title || 'Chat'} response`,
-                            content: m.content,
+                            title: `${active?.title || 'Chat'} response${selectedLanguage !== 'en' ? ` (${languages.find(l => l.code === selectedLanguage)?.name})` : ''}`,
+                            content: getMessageContent(m),
                             section: 'notes',
                           })}
                         >
@@ -1511,8 +1616,8 @@ export default function ChatPage() {
                           className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-theme text-muted hover:text-foreground transition-colors"
                           variant="fullpage"
                           derive={() => ({
-                            title: `${active?.title || 'Chat'} citation`,
-                            content: m.content,
+                            title: `${active?.title || 'Chat'} citation${selectedLanguage !== 'en' ? ` (${languages.find(l => l.code === selectedLanguage)?.name})` : ''}`,
+                            content: getMessageContent(m),
                             section: 'references',
                             tags: ['citation']
                           })}
