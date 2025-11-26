@@ -62,9 +62,10 @@ Requirements:
 - Questions should be numbered (1, 2, 3, etc.)
 - Each question should be on a new line
 - Questions should be well-structured and research-appropriate
-- Mix question types appropriately (for surveys: include multiple choice, rating scales, and open-ended questions)
+- For surveys: Create standalone questions that can be answered directly. Do NOT include response scales (like Likert scales) as separate items - if a question uses a scale, include it in parentheses at the end of the same question line, e.g., "I enjoy using technology for research. (1=Strongly Disagree to 5=Strongly Agree)"
 - For interviews: focus on open-ended, exploratory questions
 - Ensure questions directly relate to the research objectives
+- IMPORTANT: Each numbered item must be a complete, answerable question. Do not output scale descriptions or response options as separate numbered items.
 
 Return the questions in a clear, numbered list format. Each question should be on its own line.`;
 
@@ -91,6 +92,10 @@ Return the questions in a clear, numbered list format. Each question should be o
       .filter(line => {
         // Filter out empty lines and lines that don't look like questions
         if (!line) return false;
+        // Filter out standalone scale descriptions (e.g., "(1 - Strongly Disagree, 2 - Disagree...)")
+        if (/^\(?1\s*[-=]\s*(strongly\s*)?disagree/i.test(line)) return false;
+        if (/^\(?\d+\s*[-=]\s*(strongly\s*)?(disagree|agree|neutral)/i.test(line)) return false;
+        if (/^(scale|rating|options?):/i.test(line)) return false;
         // Check if line starts with a number or bullet point
         return /^(\d+[\.\)]\s+|[-*•]\s+|Q\d*[\.\):]\s*)/i.test(line) || line.length > 20;
       })

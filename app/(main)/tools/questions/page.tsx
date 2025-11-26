@@ -1,11 +1,13 @@
 // Survey/Interview Questions Generator Tool Page
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
-import { CopyIcon, CheckIcon, ReloadIcon } from "@radix-ui/react-icons";
+import { CopyIcon, CheckIcon, ReloadIcon, BookmarkIcon, Cross2Icon } from "@radix-ui/react-icons";
 
 type QuestionType = 'survey' | 'interview';
+type SectionType = 'notes' | 'drafts' | 'references';
+type Workspace = { id: string; name: string };
 
 export default function QuestionsGeneratorPage() {
   const [researchObjectives, setResearchObjectives] = useState("");
@@ -14,6 +16,14 @@ export default function QuestionsGeneratorPage() {
   const [questions, setQuestions] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  
+  // Modal state
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [selectedWorkspace, setSelectedWorkspace] = useState("");
+  const [selectedSection, setSelectedSection] = useState<SectionType>("notes");
+  const [loadingWorkspaces, setLoadingWorkspaces] = useState(false);
 
   const handleGenerate = async () => {
     if (!researchObjectives.trim()) {
@@ -113,6 +123,74 @@ export default function QuestionsGeneratorPage() {
     }
   };
 
+  // Load workspaces when modal opens
+  useEffect(() => {
+    if (showSaveModal) {
+      loadWorkspaces();
+    }
+  }, [showSaveModal]);
+
+  const loadWorkspaces = async () => {
+    setLoadingWorkspaces(true);
+    try {
+      const res = await fetch("/api/workspace");
+      const data = await res.json();
+      if (res.ok && data.workspaces) {
+        setWorkspaces(data.workspaces);
+        if (data.workspaces.length > 0) {
+          setSelectedWorkspace(data.workspaces[0].id);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load workspaces:", error);
+    } finally {
+      setLoadingWorkspaces(false);
+    }
+  };
+
+  const openSaveModal = () => {
+    if (questions.length === 0) {
+      toast.error("No questions to save");
+      return;
+    }
+    setShowSaveModal(true);
+  };
+
+  const handleSaveToWorkspace = async () => {
+    if (!selectedWorkspace) {
+      toast.error("Please select a workspace");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const content = `Research Objectives:\n${researchObjectives}\n\nGenerated Questions:\n${questions.map((q, i) => `${i + 1}. ${q}`).join('\n\n')}`;
+      
+      const addRes = await fetch(`/api/workspace/${selectedWorkspace}/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          section: selectedSection,
+          title: `${questionType === 'survey' ? 'Survey' : 'Interview'} Questions - ${new Date().toLocaleDateString()}`,
+          content,
+          tags: [questionType, "questions"],
+        }),
+      });
+
+      if (!addRes.ok) {
+        const data = await addRes.json();
+        throw new Error(data.error || "Failed to save");
+      }
+
+      toast.success("Saved to workspace!");
+      setShowSaveModal(false);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save to workspace");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -199,35 +277,41 @@ export default function QuestionsGeneratorPage() {
         </div>
 
         {/* Results Section */}
-        <div className="card p-6 bg-card border-theme text-foreground flex flex-col">
-          <div className="flex items-center justify-between mb-4">
+        <div className="card p-6 bg-card border-theme text-foreground flex flex-col max-h-[600px]">
+          <div className="flex items-center justify-between mb-4 flex-shrink-0">
             <h2 className="text-xl font-semibold text-foreground">
               Generated Questions {questions.length > 0 && `(${questions.length})`}
             </h2>
             {questions.length > 0 && (
-              <div className="flex gap-2">
+              <div className="flex gap-1.5">
                 <button
                   onClick={handleRegenerate}
                   disabled={generating}
-                  className="px-3 py-1.5 text-sm rounded-lg border border-theme hover:bg-subtle-bg text-foreground flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                  className="p-2 rounded-lg border border-theme hover:bg-subtle-bg text-foreground transition-colors disabled:opacity-50"
                   title="Regenerate questions"
                 >
                   <ReloadIcon className="h-4 w-4" />
-                  Regenerate
                 </button>
                 <button
                   onClick={copyAllQuestions}
-                  className="px-3 py-1.5 text-sm rounded-lg border border-theme hover:bg-subtle-bg text-foreground flex items-center gap-1.5 transition-colors"
+                  className="p-2 rounded-lg border border-theme hover:bg-subtle-bg text-foreground transition-colors"
                   title="Copy all questions"
                 >
                   <CopyIcon className="h-4 w-4" />
-                  Copy All
+                </button>
+                <button
+                  onClick={openSaveModal}
+                  disabled={saving}
+                  className="p-2 rounded-lg border border-theme hover:bg-subtle-bg text-foreground transition-colors disabled:opacity-50"
+                  title="Save to workspace"
+                >
+                  <BookmarkIcon className="h-4 w-4" />
                 </button>
               </div>
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-3 min-h-0">
+          <div className="flex-1 overflow-y-auto space-y-3 min-h-0 pr-2">
             {questions.length === 0 ? (
               <div className="h-full grid place-items-center text-center text-muted py-12">
                 <div>
@@ -264,6 +348,142 @@ export default function QuestionsGeneratorPage() {
           </div>
         </div>
       </div>
+
+      {/* Save to Workspace Modal */}
+      {showSaveModal && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setShowSaveModal(false)}
+        >
+          <div 
+            className="bg-card border border-theme rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-theme">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[var(--brand-blue)]/15 flex items-center justify-center">
+                  <BookmarkIcon className="h-4 w-4 text-[var(--brand-blue)]" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-foreground">Save to Workspace</h3>
+                  <p className="text-[11px] text-muted">Choose where to save your questions</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSaveModal(false)}
+                className="p-1.5 rounded-lg hover:bg-subtle-bg text-muted hover:text-foreground transition-all"
+              >
+                <Cross2Icon className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="px-5 py-5 space-y-4">
+              <div>
+                <label className="flex items-center gap-1.5 text-xs font-medium text-foreground mb-2">
+                  <svg className="w-3.5 h-3.5 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                  </svg>
+                  Workspace
+                </label>
+                {loadingWorkspaces ? (
+                  <div className="w-full px-3 py-2.5 rounded-lg bg-input-bg border border-theme text-muted text-sm flex items-center gap-2">
+                    <div className="h-3.5 w-3.5 border-2 border-muted border-t-transparent rounded-full animate-spin" />
+                    Loading workspaces...
+                  </div>
+                ) : workspaces.length === 0 ? (
+                  <div className="w-full px-3 py-2.5 rounded-lg bg-subtle-bg border border-theme text-muted text-xs flex items-center gap-2">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    No workspaces found. Create one first.
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <select
+                      value={selectedWorkspace}
+                      onChange={(e) => setSelectedWorkspace(e.target.value)}
+                      className="w-full px-3 py-2.5 text-sm rounded-lg bg-input-bg border border-theme text-foreground focus:outline-none focus:border-[var(--brand-blue)] cursor-pointer appearance-none transition-colors"
+                    >
+                      {workspaces.map((ws) => (
+                        <option key={ws.id} value={ws.id}>
+                          {ws.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-muted">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="flex items-center gap-1.5 text-xs font-medium text-foreground mb-2">
+                  <svg className="w-3.5 h-3.5 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                  </svg>
+                  Section
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedSection}
+                    onChange={(e) => setSelectedSection(e.target.value as SectionType)}
+                    className="w-full px-3 py-2.5 text-sm rounded-lg bg-input-bg border border-theme text-foreground focus:outline-none focus:border-[var(--brand-blue)] cursor-pointer appearance-none transition-colors"
+                  >
+                    <option value="notes">📝 Notes</option>
+                    <option value="drafts">📄 Drafts</option>
+                    <option value="references">📚 References</option>
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-muted">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              {/* Preview */}
+              <div className="p-3 rounded-lg bg-subtle-bg border border-theme">
+                <p className="text-[10px] text-muted mb-0.5">Saving {questions.length} questions as:</p>
+                <p className="text-xs text-foreground font-medium truncate">
+                  {questionType === 'survey' ? 'Survey' : 'Interview'} Questions - {new Date().toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-2 justify-end px-5 py-3 border-t border-theme bg-subtle-bg/50 rounded-b-2xl">
+              <button
+                onClick={() => setShowSaveModal(false)}
+                className="px-4 py-2 text-xs font-medium rounded-lg border border-theme bg-card text-foreground hover:bg-input-bg transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveToWorkspace}
+                disabled={saving || !selectedWorkspace || workspaces.length === 0}
+                className="px-4 py-2 text-xs font-medium rounded-lg bg-[var(--brand-blue)] text-white hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+              >
+                {saving ? (
+                  <>
+                    <div className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <CheckIcon className="h-3 w-3" />
+                    Save & Edit
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

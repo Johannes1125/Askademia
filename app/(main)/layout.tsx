@@ -14,7 +14,6 @@ import {
   ChatBubbleIcon,
   BookmarkIcon,
   CheckCircledIcon,
-  BarChartIcon,
   GearIcon,
   ExitIcon,
   LockClosedIcon,
@@ -36,7 +35,6 @@ const primaryNav: NavItem[] = [
   { href: "/tools/grammar", label: "Grammar Checker", icon: <CheckCircledIcon /> },
   { href: "/tools/questions", label: "Question Generator", icon: <QuestionMarkIcon /> },
   { href: "/workspace", label: "Workspace", icon: <Pencil2Icon /> },
-  { href: "/analytics", label: "Analytics", icon: <BarChartIcon /> },
 ];
 
 export default function MainLayout({ children }: { children: ReactNode }) {

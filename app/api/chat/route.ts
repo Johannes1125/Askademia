@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
             model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
             messages: formattedMessages,
             temperature: 0.7,
-            max_tokens: 200,
+            max_tokens: 750,
             stream: true, // Enable streaming
           });
 

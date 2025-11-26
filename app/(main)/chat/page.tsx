@@ -375,12 +375,20 @@ export default function ChatPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    // Detect Opera browser
+    const isOpera = (navigator.userAgent.includes('OPR') || navigator.userAgent.includes('Opera'));
+
     // Check browser support
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     
     if (!SpeechRecognition) {
       setRecognitionError('Speech recognition not supported in this browser. Please use Chrome or Edge.');
       return;
+    }
+
+    // Warn Opera users about potential issues
+    if (isOpera) {
+      console.warn('Opera has limited Web Speech API support. Voice input may not work reliably.');
     }
 
     const recognitionInstance = new SpeechRecognition();
@@ -1489,6 +1497,7 @@ export default function ChatPage() {
                         </button>
                         <WorkspaceQuickAddButton
                           className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-theme text-muted hover:text-foreground transition-colors"
+                          variant="fullpage"
                           derive={() => ({
                             title: `${active?.title || 'Chat'} response`,
                             content: m.content,
@@ -1500,6 +1509,7 @@ export default function ChatPage() {
                         </WorkspaceQuickAddButton>
                         <WorkspaceQuickAddButton
                           className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-theme text-muted hover:text-foreground transition-colors"
+                          variant="fullpage"
                           derive={() => ({
                             title: `${active?.title || 'Chat'} citation`,
                             content: m.content,
