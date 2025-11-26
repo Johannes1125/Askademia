@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
-// Note: This is a placeholder for feedback. You'll need to create a feedback table in Supabase
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -28,8 +28,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Use admin client for fetching all data (bypasses RLS)
+    const adminClient = createAdminClient();
+
     // Fetch conversations with feedback from database
-    const { data: conversationsWithFeedback, error: feedbackError } = await supabase
+    const { data: conversationsWithFeedback, error: feedbackError } = await adminClient
       .from('conversations')
       .select('id, title, rating, feedback, rated_at, user_id')
       .not('rating', 'is', null)
@@ -46,8 +49,8 @@ export async function GET(request: NextRequest) {
     // Get unique user IDs
     const userIds = [...new Set((conversationsWithFeedback || []).map((c: any) => c.user_id))];
     
-    // Fetch profiles for these users
-    const { data: profiles } = await supabase
+    // Fetch profiles for these users using admin client (bypasses RLS)
+    const { data: profiles } = await adminClient
       .from('profiles')
       .select('id, username')
       .in('id', userIds);
@@ -72,4 +75,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-

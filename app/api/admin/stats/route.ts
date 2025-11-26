@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 const parseDate = (value: string | null) => {
   if (!value) return null;
@@ -45,6 +46,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Use admin client for fetching all data (bypasses RLS)
+    const adminClient = createAdminClient();
+
     // Get date range from query params
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
@@ -77,12 +81,12 @@ export async function GET(request: NextRequest) {
     const endIso = end && hasDateFilter ? toEndOfDayUTC(end) : null;
 
     // Get total users count
-    const { count: totalUsers } = await supabase
+    const { count: totalUsers } = await adminClient
       .from('profiles')
       .select('*', { count: 'exact', head: true });
 
     // Get new users count (within date range if provided)
-    let newUsersQuery = supabase
+    let newUsersQuery = adminClient
       .from('profiles')
       .select('*', { count: 'exact', head: true });
     
@@ -99,7 +103,7 @@ export async function GET(request: NextRequest) {
     const { count: newUsers } = await newUsersQuery;
 
     // Get conversations count
-    let conversationsQuery = supabase
+    let conversationsQuery = adminClient
       .from('conversations')
       .select('*', { count: 'exact', head: true });
     
@@ -109,7 +113,7 @@ export async function GET(request: NextRequest) {
     const { count: totalConversations } = await conversationsQuery;
 
     // Get messages count
-    let messagesQuery = supabase
+    let messagesQuery = adminClient
       .from('messages')
       .select('*', { count: 'exact', head: true });
     
@@ -119,7 +123,7 @@ export async function GET(request: NextRequest) {
     const { count: totalMessages } = await messagesQuery;
 
     // Get citations count
-    let citationsQuery = supabase
+    let citationsQuery = adminClient
       .from('citations')
       .select('*', { count: 'exact', head: true });
     
@@ -132,7 +136,7 @@ export async function GET(request: NextRequest) {
     let activityData: any[] = [];
     
     // Build query for conversations with date filtering
-    let activityQuery = supabase
+    let activityQuery = adminClient
       .from('conversations')
       .select('created_at')
       .order('created_at', { ascending: true });
@@ -294,4 +298,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-
