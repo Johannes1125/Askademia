@@ -725,7 +725,7 @@ export default function CitationsPage() {
           {loading ? 'Generating…' : mode === 'url' ? 'Generate from URL' : '+ Add Citation'}
         </button>
       </div>
-  <div className="card p-4 md:p-6 bg-card border-theme rounded-xl flex flex-col overflow-hidden h-full min-h-[300px] text-foreground">
+  <div className="card p-4 md:p-6 bg-card border-theme rounded-xl flex flex-col overflow-hidden max-h-[calc(100vh-8rem)] text-foreground">
         <div className="flex items-center justify-between mb-4 flex-shrink-0">
           <h2 className="text-xl font-semibold text-foreground">Your Citations</h2>
           {items.length > 0 && (
@@ -756,7 +756,7 @@ export default function CitationsPage() {
         ) : items.length === 0 ? (
           <p className="text-muted">No citations yet. Add one from the form.</p>
         ) : (
-          <ul className="flex-1 overflow-y-auto pr-2 space-y-4 min-h-0">
+          <ul className="flex-1 overflow-y-auto pr-2 space-y-4 min-h-0 max-h-full">
             {items.map((c, i) => (
               <li key={c.id || i} className="p-4 bg-subtle-bg border border-theme rounded-md space-y-3 relative group">
                 {/* Full Citation */}

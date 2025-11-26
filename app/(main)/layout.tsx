@@ -76,6 +76,8 @@ export default function MainLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // Skip for admin pages - admin has its own layout
+    if (pathname?.startsWith('/admin')) return;
     const stored =
       localStorage.getItem("ask_theme") ??
       localStorage.getItem("theme");
@@ -89,15 +91,17 @@ export default function MainLayout({ children }: { children: ReactNode }) {
     }
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     setDark(prefersDark);
-  }, []);
+  }, [pathname]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // Skip toggling dark class for admin pages - admin has its own layout
+    if (pathname?.startsWith('/admin')) return;
     document.documentElement.classList.toggle("dark", dark);
     const next = dark ? "dark" : "light";
     localStorage.setItem("ask_theme", next);
     localStorage.setItem("theme", next);
-  }, [dark]);
+  }, [dark, pathname]);
 
   // If admin page, just render children without main layout
   if (isAdminPage) {

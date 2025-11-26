@@ -1,6 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+const parseDate = (value: string | null) => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const toStartOfDayUTC = (date: Date) => {
+  const copy = new Date(date);
+  copy.setUTCHours(0, 0, 0, 0);
+  return copy.toISOString();
+};
+
+const toEndOfDayUTC = (date: Date) => {
+  const copy = new Date(date);
+  copy.setUTCHours(23, 59, 59, 999);
+  return copy.toISOString();
+};
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -32,6 +50,31 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const period = searchParams.get('period') || 'day'; // day, month, year
+    const hasDateFilter = Boolean(startDate || endDate);
+
+    const now = new Date();
+    let start = hasDateFilter ? parseDate(startDate) : null;
+    let end = hasDateFilter ? parseDate(endDate) : null;
+
+    if (start && start > now) start = new Date(now);
+    if (end && end > now) end = new Date(now);
+
+    if (hasDateFilter) {
+      if (start && !end) end = new Date(now);
+      if (!start && end) {
+        const fallback = new Date(end);
+        fallback.setDate(fallback.getDate() - 30);
+        start = fallback;
+      }
+      if (start && end && start > end) {
+        const temp = start;
+        start = end;
+        end = temp;
+      }
+    }
+
+    const startIso = start && hasDateFilter ? toStartOfDayUTC(start) : null;
+    const endIso = end && hasDateFilter ? toEndOfDayUTC(end) : null;
 
     // Get total users count
     const { count: totalUsers } = await supabase
@@ -43,10 +86,9 @@ export async function GET(request: NextRequest) {
       .from('profiles')
       .select('*', { count: 'exact', head: true });
     
-    if (startDate && endDate) {
-      newUsersQuery = newUsersQuery
-        .gte('created_at', startDate)
-        .lte('created_at', endDate);
+    if (startIso || endIso) {
+      if (startIso) newUsersQuery = newUsersQuery.gte('created_at', startIso);
+      if (endIso) newUsersQuery = newUsersQuery.lte('created_at', endIso);
     } else {
       // Default to last 30 days
       const thirtyDaysAgo = new Date();
@@ -61,11 +103,8 @@ export async function GET(request: NextRequest) {
       .from('conversations')
       .select('*', { count: 'exact', head: true });
     
-    if (startDate && endDate) {
-      conversationsQuery = conversationsQuery
-        .gte('created_at', startDate)
-        .lte('created_at', endDate);
-    }
+    if (startIso) conversationsQuery = conversationsQuery.gte('created_at', startIso);
+    if (endIso) conversationsQuery = conversationsQuery.lte('created_at', endIso);
 
     const { count: totalConversations } = await conversationsQuery;
 
@@ -74,11 +113,8 @@ export async function GET(request: NextRequest) {
       .from('messages')
       .select('*', { count: 'exact', head: true });
     
-    if (startDate && endDate) {
-      messagesQuery = messagesQuery
-        .gte('created_at', startDate)
-        .lte('created_at', endDate);
-    }
+    if (startIso) messagesQuery = messagesQuery.gte('created_at', startIso);
+    if (endIso) messagesQuery = messagesQuery.lte('created_at', endIso);
 
     const { count: totalMessages } = await messagesQuery;
 
@@ -87,91 +123,155 @@ export async function GET(request: NextRequest) {
       .from('citations')
       .select('*', { count: 'exact', head: true });
     
-    if (startDate && endDate) {
-      citationsQuery = citationsQuery
-        .gte('created_at', startDate)
-        .lte('created_at', endDate);
-    }
+    if (startIso) citationsQuery = citationsQuery.gte('created_at', startIso);
+    if (endIso) citationsQuery = citationsQuery.lte('created_at', endIso);
 
     const { count: totalCitations } = await citationsQuery;
 
     // Get activity data grouped by period
     let activityData: any[] = [];
     
-    if (period === 'day') {
-      // Get daily activity for last 30 days
-      const { data: conversations } = await supabase
-        .from('conversations')
-        .select('created_at')
-        .order('created_at', { ascending: true });
+    // Build query for conversations with date filtering
+    let activityQuery = supabase
+      .from('conversations')
+      .select('created_at')
+      .order('created_at', { ascending: true });
+    
+    if (startIso) activityQuery = activityQuery.gte('created_at', startIso);
+    if (endIso) activityQuery = activityQuery.lte('created_at', endIso);
+    
+    const { data: conversations } = await activityQuery;
+    
+    if (conversations && conversations.length > 0) {
+      const activityMap = new Map<string, number>();
       
-      if (conversations) {
-        const activityMap = new Map<string, number>();
+      // Determine date range for filling gaps
+      let rangeStart: Date;
+      let rangeEnd: Date;
+      
+      if (hasDateFilter && start && end) {
+        rangeStart = new Date(start);
+        rangeEnd = new Date(end);
+      } else if (hasDateFilter && start) {
+        rangeStart = new Date(start);
+        rangeEnd = new Date(now);
+      } else if (hasDateFilter && end) {
+        rangeEnd = new Date(end);
+        rangeStart = new Date(end);
+        rangeStart.setDate(rangeStart.getDate() - 30);
+      } else {
+        // Default to last 30 days
+        rangeEnd = new Date(now);
+        rangeStart = new Date(now);
+        rangeStart.setDate(rangeStart.getDate() - 30);
+      }
+      
+      if (period === 'day') {
+        // Group by day
         conversations.forEach(conv => {
           const date = new Date(conv.created_at).toISOString().split('T')[0];
           activityMap.set(date, (activityMap.get(date) || 0) + 1);
         });
         
-        // Fill in missing days
-        const today = new Date();
-        for (let i = 29; i >= 0; i--) {
-          const date = new Date(today);
-          date.setDate(date.getDate() - i);
-          const dateStr = date.toISOString().split('T')[0];
+        // Fill in missing days in range
+        const current = new Date(rangeStart);
+        while (current <= rangeEnd) {
+          const dateStr = current.toISOString().split('T')[0];
           activityData.push({
             date: dateStr,
             conversations: activityMap.get(dateStr) || 0,
           });
+          current.setDate(current.getDate() + 1);
         }
-      }
-    } else if (period === 'month') {
-      // Get monthly activity for last 12 months
-      const { data: conversations } = await supabase
-        .from('conversations')
-        .select('created_at')
-        .order('created_at', { ascending: true });
-      
-      if (conversations) {
-        const activityMap = new Map<string, number>();
+      } else if (period === 'month') {
+        // Group by month
         conversations.forEach(conv => {
           const date = new Date(conv.created_at);
           const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
           activityMap.set(monthKey, (activityMap.get(monthKey) || 0) + 1);
         });
         
-        // Fill in missing months
-        const today = new Date();
-        for (let i = 11; i >= 0; i--) {
-          const date = new Date(today);
-          date.setMonth(date.getMonth() - i);
-          const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        // Fill in missing months in range
+        const current = new Date(rangeStart);
+        current.setDate(1); // Start of month
+        const endMonth = new Date(rangeEnd);
+        endMonth.setDate(1);
+        
+        while (current <= endMonth) {
+          const monthKey = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
           activityData.push({
             date: monthKey,
             conversations: activityMap.get(monthKey) || 0,
           });
+          current.setMonth(current.getMonth() + 1);
         }
-      }
-    } else if (period === 'year') {
-      // Get yearly activity
-      const { data: conversations } = await supabase
-        .from('conversations')
-        .select('created_at')
-        .order('created_at', { ascending: true });
-      
-      if (conversations) {
-        const activityMap = new Map<string, number>();
+      } else if (period === 'year') {
+        // Group by year
         conversations.forEach(conv => {
           const year = new Date(conv.created_at).getFullYear().toString();
           activityMap.set(year, (activityMap.get(year) || 0) + 1);
         });
         
-        // Get last 5 years
-        const currentYear = new Date().getFullYear();
-        for (let i = 4; i >= 0; i--) {
-          const year = (currentYear - i).toString();
+        // Fill in missing years in range
+        const startYear = rangeStart.getFullYear();
+        const endYear = rangeEnd.getFullYear();
+        
+        for (let year = startYear; year <= endYear; year++) {
           activityData.push({
-            date: year,
-            conversations: activityMap.get(year) || 0,
+            date: year.toString(),
+            conversations: activityMap.get(year.toString()) || 0,
+          });
+        }
+      }
+    } else {
+      // No data, but still fill the range
+      let rangeStart: Date;
+      let rangeEnd: Date;
+      
+      if (hasDateFilter && start && end) {
+        rangeStart = new Date(start);
+        rangeEnd = new Date(end);
+      } else if (hasDateFilter && start) {
+        rangeStart = new Date(start);
+        rangeEnd = new Date(now);
+      } else if (hasDateFilter && end) {
+        rangeEnd = new Date(end);
+        rangeStart = new Date(end);
+        rangeStart.setDate(rangeStart.getDate() - 30);
+      } else {
+        rangeEnd = new Date(now);
+        rangeStart = new Date(now);
+        rangeStart.setDate(rangeStart.getDate() - 30);
+      }
+      
+      if (period === 'day') {
+        const current = new Date(rangeStart);
+        while (current <= rangeEnd) {
+          activityData.push({
+            date: current.toISOString().split('T')[0],
+            conversations: 0,
+          });
+          current.setDate(current.getDate() + 1);
+        }
+      } else if (period === 'month') {
+        const current = new Date(rangeStart);
+        current.setDate(1);
+        const endMonth = new Date(rangeEnd);
+        endMonth.setDate(1);
+        while (current <= endMonth) {
+          activityData.push({
+            date: `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`,
+            conversations: 0,
+          });
+          current.setMonth(current.getMonth() + 1);
+        }
+      } else if (period === 'year') {
+        const startYear = rangeStart.getFullYear();
+        const endYear = rangeEnd.getFullYear();
+        for (let year = startYear; year <= endYear; year++) {
+          activityData.push({
+            date: year.toString(),
+            conversations: 0,
           });
         }
       }

@@ -843,15 +843,8 @@ export default function ChatPage() {
 
   const stopRecording = () => {
     setIsRecording(false);
-    // Clear the committed text ref when stopping
-    committedTextRef.current = "";
-    if (input.trim()) {
-      // Auto-send if there's text
-      const textToSend = input.trim();
-      if (textToSend) {
-        sendMessage(textToSend);
-      }
-    }
+    // Don't clear the committed text ref - keep it so user can edit
+    // Don't auto-send - just stop recording and keep text in input for editing
     setTranscript("");
   };
 
@@ -1666,7 +1659,7 @@ export default function ChatPage() {
               }}
               placeholder={isRecording ? "Speaking..." : "Ask about research, citations, grammar, or sources..."}
               className="flex-1 px-5 py-3.5 rounded-xl bg-input-bg border-2 border-theme text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-[var(--brand-blue)]/50 focus:border-[var(--brand-blue)] transition-all shadow-sm"
-              disabled={loading || !active || isRecording}
+              disabled={loading || !active}
             />
             
             {/* Microphone Button */}
@@ -1740,7 +1733,7 @@ export default function ChatPage() {
             </div>
             {isRecording && (
               <span className="text-[var(--brand-blue)] font-medium">
-                Press Enter or click Stop to send
+                Click Stop to finish recording, then edit and send
               </span>
             )}
           </div>
