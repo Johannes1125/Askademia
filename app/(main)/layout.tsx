@@ -14,7 +14,6 @@ import {
   ChatBubbleIcon,
   BookmarkIcon,
   CheckCircledIcon,
-  GearIcon,
   ExitIcon,
   MagnifyingGlassIcon,
   SunIcon,
@@ -23,7 +22,6 @@ import {
   Cross2Icon,
   QuestionMarkIcon,
   Pencil2Icon,
-  LayersIcon,
 } from "@radix-ui/react-icons";
 
 type NavItem = { href: string; label: string; icon: ReactNode; gradient: string };
@@ -179,15 +177,6 @@ export default function MainLayout({ children }: { children: ReactNode }) {
 
         {/* Footer */}
         <div className="border-t border-theme p-3 space-y-1">
-          <Link 
-            href="/settings" 
-            onClick={() => setSidebarOpen(false)} 
-            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted hover:text-foreground hover:bg-subtle-bg transition-all"
-          >
-            <GearIcon className="h-4 w-4" />
-            Settings
-          </Link>
-          
           {mounted && (
             <Dialog.Root open={logoutModalOpen} onOpenChange={setLogoutModalOpen}>
               <Dialog.Trigger asChild>

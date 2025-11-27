@@ -1,36 +1,175 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+<div align="center">
 
-## Getting Started
+# ✨ Askademia ✨
 
-First, run the development server:
+### *Your AI-Powered Academic Research Companion*
+
+<br />
+
+![Next.js](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=next.js)
+![Supabase](https://img.shields.io/badge/Supabase-Database-3FCF8E?style=for-the-badge&logo=supabase)
+![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4-412991?style=for-the-badge&logo=openai)
+![Tailwind](https://img.shields.io/badge/Tailwind-CSS-38B2AC?style=for-the-badge&logo=tailwind-css)
+
+<br />
+
+*Empowering students and researchers with intelligent tools for academic excellence*
+
+---
+
+</div>
+
+<br />
+
+## 🎯 What is Askademia?
+
+Askademia is a comprehensive AI-powered platform designed to supercharge your academic journey. From intelligent research assistance to automated citation generation, we've got everything you need to excel in your studies.
+
+<br />
+
+## 🚀 Features
+
+<table>
+<tr>
+<td width="50%">
+
+### 💬 AI Chat Assistant
+Your personal research companion that never sleeps.
+- Real-time conversational AI
+- Multi-language support (EN, FIL, ES)
+- Voice input with speech recognition
+- Export to PDF & DOCX
+- Smart conversation history
+
+</td>
+<td width="50%">
+
+### 📚 Citation Generator
+Never format a citation manually again.
+- APA (7th Edition)
+- MLA (9th Edition)
+- Chicago Style
+- IEEE Format
+- One-click copy & save
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### ✍️ Grammar Checker
+Polish your writing to perfection.
+- AI-powered analysis
+- Grammar & spelling fixes
+- Style suggestions
+- Score-based feedback
+- Detailed explanations
+
+</td>
+<td width="50%">
+
+### ❓ Question Generator
+Master any subject with smart study questions.
+- Multiple choice
+- True/False
+- Short answer & Essay
+- Adjustable difficulty
+- Export for studying
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### 📁 Workspace
+Your personal research hub.
+- Save important messages
+- Organize citations
+- Manage research materials
+- Quick access to everything
+
+</td>
+<td width="50%">
+
+### 📊 Dashboard
+Stay on top of your progress.
+- Usage statistics
+- Weekly activity tracking
+- Quick tool access
+- Recent activity overview
+
+</td>
+</tr>
+</table>
+
+<br />
+
+## 🛠️ Built With
+
+| Technology | Purpose |
+|------------|---------|
+| **Next.js 16** | React Framework |
+| **Supabase** | Database & Auth |
+| **OpenAI GPT-4** | AI Intelligence |
+| **Tailwind CSS** | Styling |
+| **Radix UI** | Components |
+| **Recharts** | Data Visualization |
+| **SWR** | Data Fetching |
+
+<br />
+
+## ⚡ Quick Start
 
 ```bash
+# Clone the repository
+git clone https://github.com/yourusername/askademia.git
+
+# Navigate to project
+cd askademia
+
+# Install dependencies
+npm install
+
+# Start development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open [http://localhost:3000](http://localhost:3000) 🎉
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+<br />
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 📦 Database Schema
 
-## Learn More
+```
+┌─────────────┐     ┌──────────────┐     ┌────────────┐
+│  profiles   │────▶│ conversations│────▶│  messages  │
+└─────────────┘     └──────────────┘     └────────────┘
+       │
+       │            ┌──────────────┐     ┌────────────────┐
+       └───────────▶│  workspaces  │────▶│ workspace_items│
+                    └──────────────┘     └────────────────┘
+                           │
+                    ┌──────────────┐
+                    │  citations   │
+                    └──────────────┘
+```
 
-To learn more about Next.js, take a look at the following resources:
+<br />
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🚀 Deploy
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Deploy your own instance with one click:
 
-## Deploy on Vercel
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+<br />
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+<div align="center">
+
+### Made with 💛 for Students & Researchers
+
+*Askademia — Research Smarter, Not Harder*
+
+</div>
