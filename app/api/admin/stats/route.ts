@@ -145,139 +145,119 @@ export async function GET(request: NextRequest) {
     if (endIso) activityQuery = activityQuery.lte('created_at', endIso);
     
     const { data: conversations } = await activityQuery;
+
+    // Build query for messages with date filtering
+    let messagesActivityQuery = adminClient
+      .from('messages')
+      .select('created_at')
+      .order('created_at', { ascending: true });
     
+    if (startIso) messagesActivityQuery = messagesActivityQuery.gte('created_at', startIso);
+    if (endIso) messagesActivityQuery = messagesActivityQuery.lte('created_at', endIso);
+    
+    const { data: messagesData } = await messagesActivityQuery;
+    
+    // Determine date range for filling gaps
+    let rangeStart: Date;
+    let rangeEnd: Date;
+    
+    if (hasDateFilter && start && end) {
+      rangeStart = new Date(start);
+      rangeEnd = new Date(end);
+    } else if (hasDateFilter && start) {
+      rangeStart = new Date(start);
+      rangeEnd = new Date(now);
+    } else if (hasDateFilter && end) {
+      rangeEnd = new Date(end);
+      rangeStart = new Date(end);
+      rangeStart.setDate(rangeStart.getDate() - 30);
+    } else {
+      // Default to last 30 days
+      rangeEnd = new Date(now);
+      rangeStart = new Date(now);
+      rangeStart.setDate(rangeStart.getDate() - 30);
+    }
+
+    const conversationMap = new Map<string, number>();
+    const messagesMap = new Map<string, number>();
+
+    // Process conversations
     if (conversations && conversations.length > 0) {
-      const activityMap = new Map<string, number>();
-      
-      // Determine date range for filling gaps
-      let rangeStart: Date;
-      let rangeEnd: Date;
-      
-      if (hasDateFilter && start && end) {
-        rangeStart = new Date(start);
-        rangeEnd = new Date(end);
-      } else if (hasDateFilter && start) {
-        rangeStart = new Date(start);
-        rangeEnd = new Date(now);
-      } else if (hasDateFilter && end) {
-        rangeEnd = new Date(end);
-        rangeStart = new Date(end);
-        rangeStart.setDate(rangeStart.getDate() - 30);
-      } else {
-        // Default to last 30 days
-        rangeEnd = new Date(now);
-        rangeStart = new Date(now);
-        rangeStart.setDate(rangeStart.getDate() - 30);
-      }
-      
       if (period === 'day') {
-        // Group by day
         conversations.forEach(conv => {
           const date = new Date(conv.created_at).toISOString().split('T')[0];
-          activityMap.set(date, (activityMap.get(date) || 0) + 1);
+          conversationMap.set(date, (conversationMap.get(date) || 0) + 1);
         });
-        
-        // Fill in missing days in range
-        const current = new Date(rangeStart);
-        while (current <= rangeEnd) {
-          const dateStr = current.toISOString().split('T')[0];
-          activityData.push({
-            date: dateStr,
-            conversations: activityMap.get(dateStr) || 0,
-          });
-          current.setDate(current.getDate() + 1);
-        }
       } else if (period === 'month') {
-        // Group by month
         conversations.forEach(conv => {
           const date = new Date(conv.created_at);
           const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-          activityMap.set(monthKey, (activityMap.get(monthKey) || 0) + 1);
+          conversationMap.set(monthKey, (conversationMap.get(monthKey) || 0) + 1);
         });
-        
-        // Fill in missing months in range
-        const current = new Date(rangeStart);
-        current.setDate(1); // Start of month
-        const endMonth = new Date(rangeEnd);
-        endMonth.setDate(1);
-        
-        while (current <= endMonth) {
-          const monthKey = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
-          activityData.push({
-            date: monthKey,
-            conversations: activityMap.get(monthKey) || 0,
-          });
-          current.setMonth(current.getMonth() + 1);
-        }
       } else if (period === 'year') {
-        // Group by year
         conversations.forEach(conv => {
           const year = new Date(conv.created_at).getFullYear().toString();
-          activityMap.set(year, (activityMap.get(year) || 0) + 1);
+          conversationMap.set(year, (conversationMap.get(year) || 0) + 1);
         });
-        
-        // Fill in missing years in range
-        const startYear = rangeStart.getFullYear();
-        const endYear = rangeEnd.getFullYear();
-        
-        for (let year = startYear; year <= endYear; year++) {
-          activityData.push({
-            date: year.toString(),
-            conversations: activityMap.get(year.toString()) || 0,
-          });
-        }
       }
-    } else {
-      // No data, but still fill the range
-      let rangeStart: Date;
-      let rangeEnd: Date;
-      
-      if (hasDateFilter && start && end) {
-        rangeStart = new Date(start);
-        rangeEnd = new Date(end);
-      } else if (hasDateFilter && start) {
-        rangeStart = new Date(start);
-        rangeEnd = new Date(now);
-      } else if (hasDateFilter && end) {
-        rangeEnd = new Date(end);
-        rangeStart = new Date(end);
-        rangeStart.setDate(rangeStart.getDate() - 30);
-      } else {
-        rangeEnd = new Date(now);
-        rangeStart = new Date(now);
-        rangeStart.setDate(rangeStart.getDate() - 30);
-      }
-      
+    }
+
+    // Process messages
+    if (messagesData && messagesData.length > 0) {
       if (period === 'day') {
-        const current = new Date(rangeStart);
-        while (current <= rangeEnd) {
-          activityData.push({
-            date: current.toISOString().split('T')[0],
-            conversations: 0,
-          });
-          current.setDate(current.getDate() + 1);
-        }
+        messagesData.forEach(msg => {
+          const date = new Date(msg.created_at).toISOString().split('T')[0];
+          messagesMap.set(date, (messagesMap.get(date) || 0) + 1);
+        });
       } else if (period === 'month') {
-        const current = new Date(rangeStart);
-        current.setDate(1);
-        const endMonth = new Date(rangeEnd);
-        endMonth.setDate(1);
-        while (current <= endMonth) {
-          activityData.push({
-            date: `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`,
-            conversations: 0,
-          });
-          current.setMonth(current.getMonth() + 1);
-        }
+        messagesData.forEach(msg => {
+          const date = new Date(msg.created_at);
+          const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          messagesMap.set(monthKey, (messagesMap.get(monthKey) || 0) + 1);
+        });
       } else if (period === 'year') {
-        const startYear = rangeStart.getFullYear();
-        const endYear = rangeEnd.getFullYear();
-        for (let year = startYear; year <= endYear; year++) {
-          activityData.push({
-            date: year.toString(),
-            conversations: 0,
-          });
-        }
+        messagesData.forEach(msg => {
+          const year = new Date(msg.created_at).getFullYear().toString();
+          messagesMap.set(year, (messagesMap.get(year) || 0) + 1);
+        });
+      }
+    }
+
+    // Build activity data with both conversations and messages
+    if (period === 'day') {
+      const current = new Date(rangeStart);
+      while (current <= rangeEnd) {
+        const dateStr = current.toISOString().split('T')[0];
+        activityData.push({
+          date: dateStr,
+          conversations: conversationMap.get(dateStr) || 0,
+          messages: messagesMap.get(dateStr) || 0,
+        });
+        current.setDate(current.getDate() + 1);
+      }
+    } else if (period === 'month') {
+      const current = new Date(rangeStart);
+      current.setDate(1);
+      const endMonth = new Date(rangeEnd);
+      endMonth.setDate(1);
+      while (current <= endMonth) {
+        const monthKey = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
+        activityData.push({
+          date: monthKey,
+          conversations: conversationMap.get(monthKey) || 0,
+          messages: messagesMap.get(monthKey) || 0,
+        });
+        current.setMonth(current.getMonth() + 1);
+      }
+    } else if (period === 'year') {
+      const startYear = rangeStart.getFullYear();
+      const endYear = rangeEnd.getFullYear();
+      for (let year = startYear; year <= endYear; year++) {
+        activityData.push({
+          date: year.toString(),
+          conversations: conversationMap.get(year.toString()) || 0,
+          messages: messagesMap.get(year.toString()) || 0,
+        });
       }
     }
 

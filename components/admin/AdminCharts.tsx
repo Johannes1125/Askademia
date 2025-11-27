@@ -13,7 +13,7 @@ import {
   Cell,
 } from 'recharts';
 
-type Activity = { date: string; conversations: number }[];
+type Activity = { date: string; conversations: number; messages: number }[];
 
 // Custom tooltip with elegant styling
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -113,12 +113,12 @@ export default function AdminCharts({ data, period }: { data: Activity; period: 
         </div>
       </div>
 
-      {/* User Growth Bar Chart */}
+      {/* Messages Bar Chart */}
       <div className="card p-6 border-theme bg-card hover:shadow-xl transition-all duration-300 rounded-xl overflow-hidden relative">
         <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 via-transparent to-emerald-500/5 pointer-events-none" />
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-foreground">User Growth</h2>
+            <h2 className="text-xl font-bold text-foreground">Messages</h2>
             <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20">
               <div className="w-2 h-2 rounded-full bg-green-500" />
               <span className="text-xs font-medium text-green-600 dark:text-green-400">Active</span>
@@ -150,8 +150,8 @@ export default function AdminCharts({ data, period }: { data: Activity; period: 
               />
               <Tooltip content={<CustomTooltip />} />
               <Bar 
-                dataKey="conversations" 
-                name="Conversations"
+                dataKey="messages" 
+                name="Messages"
                 radius={[8, 8, 0, 0]}
                 animationDuration={1000}
                 animationEasing="ease-out"

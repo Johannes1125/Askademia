@@ -36,7 +36,7 @@ type Stats = {
   totalConversations: number;
   totalMessages: number;
   totalCitations: number;
-  activityData: Array<{ date: string; conversations: number }>;
+  activityData: Array<{ date: string; conversations: number; messages: number }>;
   period: string;
 };
 

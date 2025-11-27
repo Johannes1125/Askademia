@@ -7,7 +7,6 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "react-toastify";
 import {
   DashboardIcon,
-  GearIcon,
   ExitIcon,
   MagnifyingGlassIcon,
   HamburgerMenuIcon,
@@ -230,15 +229,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Footer */}
         <div className="border-t border-theme p-3 space-y-1">
-          <Link 
-            href="/settings" 
-            onClick={() => setSidebarOpen(false)} 
-            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted hover:text-foreground hover:bg-subtle-bg transition-all"
-          >
-            <GearIcon className="h-4 w-4" />
-            Settings
-          </Link>
-          
           {mounted && (
             <Dialog.Root open={logoutModalOpen} onOpenChange={setLogoutModalOpen}>
               <Dialog.Trigger asChild>
